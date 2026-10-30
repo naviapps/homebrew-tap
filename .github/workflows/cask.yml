@@ -1,0 +1,39 @@
+name: Cask
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  kiseki:
+    runs-on: macos-26
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          path: homebrew-tap
+      - name: Tap the proposed checkout
+        run: brew tap naviapps/tap "file://${GITHUB_WORKSPACE}/homebrew-tap"
+      - name: Style and audit
+        run: |
+          brew style --cask naviapps/tap/kiseki
+          brew audit --strict --online --cask naviapps/tap/kiseki
+      - name: Install and verify
+        run: |
+          brew install --cask --require-sha --appdir="${RUNNER_TEMP}/kiseki-apps" naviapps/tap/kiseki
+          codesign --verify --deep --strict --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
+          spctl --assess --type execute --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
+      - name: Uninstall
+        if: always()
+        run: |
+          if brew list --cask naviapps/tap/kiseki >/dev/null 2>&1; then
+            brew uninstall --cask naviapps/tap/kiseki
+          fi
+          test ! -e "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
