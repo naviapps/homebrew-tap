@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -11,6 +12,7 @@ permissions:
 jobs:
   kiseki:
     runs-on: macos-26
+    timeout-minutes: 15
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
@@ -20,16 +22,109 @@ jobs:
           persist-credentials: false
           path: homebrew-tap
       - name: Tap the proposed checkout
-        run: brew tap naviapps/tap "file://${GITHUB_WORKSPACE}/homebrew-tap"
+        run: |
+          brew tap naviapps/tap "file://${GITHUB_WORKSPACE}/homebrew-tap"
+          if brew command trust >/dev/null 2>&1; then
+            brew trust --cask naviapps/tap/kiseki
+          fi
       - name: Style and audit
         run: |
           brew style --cask naviapps/tap/kiseki
           brew audit --strict --online --cask naviapps/tap/kiseki
+      - name: Verify published checksum
+        run: |
+          brew info --json=v2 --cask naviapps/tap/kiseki > "${RUNNER_TEMP}/kiseki-cask.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from urllib.request import urlopen
+
+          cask = json.loads((Path(os.environ["RUNNER_TEMP"]) / "kiseki-cask.json").read_text())["casks"][0]
+          url = cask["url"].rsplit("/", 1)[0] + "/SHA256SUMS"
+          with urlopen(url, timeout=30) as response:
+              entries = [line.split() for line in response.read().decode().splitlines()]
+          hashes = [parts[0] for parts in entries if len(parts) == 2 and parts[1] == "Kiseki.dmg"]
+          assert hashes == [cask["sha256"]], "Cask checksum differs from published SHA256SUMS"
+          PY
       - name: Install and verify
         run: |
           brew install --cask --require-sha --appdir="${RUNNER_TEMP}/kiseki-apps" naviapps/tap/kiseki
+          python3 - <<'PY'
+          import json
+          import os
+          import plistlib
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"])
+          cask = json.loads((root / "kiseki-cask.json").read_text())["casks"][0]
+          with (root / "kiseki-apps/Kiseki.app/Contents/Info.plist").open("rb") as stream:
+              info = plistlib.load(stream)
+          assert info["CFBundleIdentifier"] == "com.naviapps.Kiseki"
+          assert info["CFBundleShortVersionString"] == cask["version"]
+          minimum = list(map(int, info["LSMinimumSystemVersion"].split(".")))
+          declared = list(map(int, cask["depends_on"]["macos"][">="][0].split(".")))
+          assert minimum + [0] * (3 - len(minimum)) == declared + [0] * (3 - len(declared))
+          PY
+          lipo -verify_arch arm64 x86_64 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app/Contents/MacOS/Kiseki"
           codesign --verify --deep --strict --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
           spctl --assess --type execute --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
+      - name: Seed cleanup fixtures
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          assert os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted", "Requires a disposable runner"
+          root = Path(os.environ["RUNNER_TEMP"])
+          cask = json.loads((root / "kiseki-cask.json").read_text())["casks"][0]
+          trash = next(artifact["zap"][0]["trash"] for artifact in cask["artifacts"] if "zap" in artifact)
+          remove = [Path(path).expanduser() for path in trash]
+          keep = [path.with_name(path.name + ".QA") for path in remove]
+          keep.append(root / "exported-gestures.kiseki")
+          for path in remove:
+              assert path.is_relative_to(Path.home() / "Library")
+              assert path.name in ("com.naviapps.Kiseki", "com.naviapps.Kiseki.plist",
+                                   "com.naviapps.Kiseki.binarycookies", "com.naviapps.Kiseki.savedState")
+          for path in remove + keep:
+              assert not path.exists() and not path.is_symlink(), f"Refusing to overwrite {path}"
+          data = [path if path.suffix in (".plist", ".binarycookies", ".kiseki")
+                  else path / "nested/fixture" for path in remove + keep]
+          for path in data:
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_text("Homebrew cleanup fixture\n")
+          (root / "kiseki-cleanup.json").write_text(json.dumps({"remove": list(map(str, remove)),
+                                                             "keep": list(map(str, data[len(remove):])),
+                                                             "data": list(map(str, data))}))
+          PY
+      - name: Verify ordinary uninstall preserves data
+        run: |
+          brew uninstall --cask naviapps/tap/kiseki
+          test ! -e "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          fixtures = json.loads((Path(os.environ["RUNNER_TEMP"]) / "kiseki-cleanup.json").read_text())
+          for path in fixtures["data"]:
+              assert Path(path).read_text() == "Homebrew cleanup fixture\n", f"Uninstall changed {path}"
+          PY
+      - name: Verify zap removes only app data
+        run: |
+          brew uninstall --cask --zap --force naviapps/tap/kiseki
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          fixtures = json.loads((Path(os.environ["RUNNER_TEMP"]) / "kiseki-cleanup.json").read_text())
+          for path in fixtures["remove"]:
+              assert not Path(path).exists(), f"Zap left {path}"
+          for path in fixtures["keep"]:
+              assert Path(path).read_text() == "Homebrew cleanup fixture\n", f"Zap changed {path}"
+          PY
       - name: Uninstall
         if: always()
         run: |

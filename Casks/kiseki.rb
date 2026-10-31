@@ -16,4 +16,15 @@ cask "kiseki" do
   depends_on macos: :tahoe
 
   app "Kiseki.app"
+
+  uninstall quit: "com.naviapps.Kiseki"
+
+  zap trash: [
+    "~/Library/Application Support/com.naviapps.Kiseki",
+    "~/Library/Caches/com.naviapps.Kiseki",
+    "~/Library/HTTPStorages/com.naviapps.Kiseki",
+    "~/Library/HTTPStorages/com.naviapps.Kiseki.binarycookies",
+    "~/Library/Preferences/com.naviapps.Kiseki.plist",
+    "~/Library/Saved Application State/com.naviapps.Kiseki.savedState",
+  ]
 end
