@@ -29,7 +29,8 @@ brew update
 brew upgrade --cask --greedy naviapps/tap/kiseki
 ```
 
-To free a Pro activation, deactivate the license in Kiseki before uninstalling.
+Before uninstalling, turn off Launch at Login in Kiseki if enabled. To free a Pro
+activation, deactivate the license in Kiseki before uninstalling.
 To uninstall the app while keeping its settings and Keychain license record:
 
 ```sh

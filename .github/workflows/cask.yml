@@ -54,6 +54,7 @@ jobs:
           import json
           import os
           import plistlib
+          import subprocess
           from pathlib import Path
 
           root = Path(os.environ["RUNNER_TEMP"])
@@ -65,8 +66,10 @@ jobs:
           minimum = list(map(int, info["LSMinimumSystemVersion"].split(".")))
           declared = list(map(int, cask["depends_on"]["macos"][">="][0].split(".")))
           assert minimum + [0] * (3 - len(minimum)) == declared + [0] * (3 - len(declared))
+          binary = root / "kiseki-apps/Kiseki.app/Contents/MacOS/Kiseki"
+          architectures = subprocess.check_output(["lipo", "-archs", str(binary)], text=True).split()
+          assert {"arm64", "x86_64"}.issubset(architectures), architectures
           PY
-          lipo -verify_arch arm64 x86_64 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app/Contents/MacOS/Kiseki"
           codesign --verify --deep --strict --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
           spctl --assess --type execute --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
       - name: Seed cleanup fixtures
