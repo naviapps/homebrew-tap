@@ -1,6 +1,6 @@
 cask "kiseki" do
-  version "1.0.8"
-  sha256 "164ad2d18d9ea3e7a11ce7c4c626dc2230934b7c3beb933b52fe9f3c968e104a"
+  version "1.0.9"
+  sha256 "799af4ac3ab3b182fd4eb1e21a5831e08617756e16adbbd91716a3a605f3bbc4"
 
   url "https://github.com/naviapps/kiseki/releases/download/v#{version}/Kiseki.dmg"
   name "Kiseki"
