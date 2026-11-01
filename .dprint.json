@@ -1,0 +1,23 @@
+{
+  "lineWidth": 100,
+  "indentWidth": 2,
+  "useTabs": false,
+  "newLineKind": "lf",
+  "markdown": {
+    "textWrap": "maintain"
+  },
+  "includes": [
+    "**/*.{md,json,jsonc,toml,yaml,yml}"
+  ],
+  "excludes": [
+    ".git/**",
+    "Casks/**",
+    "releases/**"
+  ],
+  "plugins": [
+    "https://github.com/dprint/dprint-plugin-json/releases/download/0.25.2/plugin.wasm@811ca4c6f732bcd6f707bc2f42d42395bb4127cdf829960cf628a18fc149777e",
+    "https://github.com/dprint/dprint-plugin-markdown/releases/download/0.28.2/plugin.wasm@77d0095123be1df7c802ef1b8875433c757f79238c26a58d1c49b8cafca44e2c",
+    "https://github.com/dprint/dprint-plugin-toml/releases/download/0.9.0/plugin.wasm@776e088ed4255a51a80e3640e5fd20b15661147e86df3e99611aaa37e9c59852",
+    "https://github.com/g-plane/pretty_yaml/releases/download/v0.6.0/plugin.wasm@40a2fdda7040317eb1b23520f3a00769a5571eedb049c4ca9175c1b9eeba01ae"
+  ]
+}
