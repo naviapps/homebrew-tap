@@ -1,11 +1,19 @@
 [tools]
 dprint = "0.64.3"
 actionlint = "1.7.12"
+shellcheck = "0.11.0"
+ruff = "0.17.3"
 
 [tasks.check]
-description = "Check owned text formatting and GitHub Actions workflows"
-run = ["dprint check", "actionlint -shellcheck= -pyflakes="]
+description = "Check owned text, workflows with ShellCheck, and Python helpers"
+run = ["dprint check", "actionlint", "ruff check scripts", "ruff format --check scripts"]
+
+[tasks."lint:cask"]
+description = "Check the local cask with Homebrew style (macOS)"
+env.HOMEBREW_NO_AUTO_UPDATE = "1"
+env.HOMEBREW_DEVELOPER = "1"
+run = "brew style --cask ./Casks/kiseki.rb"
 
 [tasks.format]
-description = "Format owned Markdown, JSON, TOML, and YAML"
-run = "dprint fmt"
+description = "Format owned Markdown, JSON, TOML, YAML, and Python"
+run = ["dprint fmt", "ruff format scripts"]

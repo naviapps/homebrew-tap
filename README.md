@@ -61,10 +61,19 @@ After publishing a new stable Kiseki release, update `version` and `sha256` in
 verify it against the published `SHA256SUMS`. Do not replace existing release
 assets. `brew livecheck --cask naviapps/tap/kiseki` checks the latest stable release.
 
-Validate a change with:
+On macOS with Homebrew, run local static checks from this checkout:
 
 ```sh
-brew style --cask naviapps/tap/kiseki
+mise run check
+mise run lint:cask
+```
+
+`check` uses dprint, actionlint with ShellCheck, and Ruff for the Python helpers.
+`lint:cask` checks `./Casks/kiseki.rb` using Homebrew's style rules with auto-update disabled.
+
+Release validation additionally uses:
+
+```sh
 brew audit --strict --online --cask naviapps/tap/kiseki
 brew fetch --cask naviapps/tap/kiseki
 ```
