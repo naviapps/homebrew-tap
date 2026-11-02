@@ -1,7 +1,7 @@
 # Navi Apps Homebrew Tap
 
-Official Navi Apps packaging for [Kiseki](https://kisekiapp.com), a mouse gesture
-app for macOS 26 and later on Apple silicon and Intel Macs.
+Official Navi Apps packaging for [Kiseki](https://kisekiapp.com), a gesture app
+for mouse and trackpad. Requires macOS 26 or later on Apple silicon or Intel Macs.
 
 ## Install
 

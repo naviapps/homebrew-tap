@@ -4,7 +4,7 @@ cask "kiseki" do
 
   url "https://github.com/naviapps/kiseki/releases/download/v#{version}/Kiseki.dmg"
   name "Kiseki"
-  desc "Mouse gesture shortcuts"
+  desc "Mouse and trackpad gesture shortcuts"
   homepage "https://kisekiapp.com/"
 
   livecheck do
