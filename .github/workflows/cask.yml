@@ -22,7 +22,7 @@ jobs:
         with:
           persist-credentials: false
           path: homebrew-tap
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           version: 2026.10.25
           working_directory: homebrew-tap
@@ -30,6 +30,9 @@ jobs:
       - name: Check formatting and workflows
         working-directory: homebrew-tap
         run: mise run check
+      - name: Test verification helpers
+        working-directory: homebrew-tap
+        run: mise run test:helpers
       - name: Check local cask style
         working-directory: homebrew-tap
         run: mise run lint:cask
@@ -42,27 +45,31 @@ jobs:
       - name: Audit
         run: brew audit --strict --online --cask naviapps/tap/kiseki
       - name: Verify published checksum
+        working-directory: homebrew-tap
         run: |
           brew info --json=v2 --cask naviapps/tap/kiseki > "${RUNNER_TEMP}/kiseki-cask.json"
-          python3 homebrew-tap/scripts/verify-published-checksum.py
+          mise run cask:python scripts/verify-published-checksum.py
       - name: Install and verify
+        working-directory: homebrew-tap
         run: |
           brew install --cask --require-sha --appdir="${RUNNER_TEMP}/kiseki-apps" naviapps/tap/kiseki
-          python3 homebrew-tap/scripts/verify-installed-app.py
+          mise run cask:python scripts/verify-installed-app.py
           codesign --verify --deep --strict --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
           spctl --assess --type execute --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
       - name: Seed cleanup fixtures
-        run: |
-          python3 homebrew-tap/scripts/seed-cleanup-fixtures.py
+        working-directory: homebrew-tap
+        run: mise run cask:python scripts/cleanup-fixtures.py seed
       - name: Verify ordinary uninstall preserves data
+        working-directory: homebrew-tap
         run: |
           brew uninstall --cask naviapps/tap/kiseki
           test ! -e "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
-          python3 homebrew-tap/scripts/verify-uninstall-preserves-data.py
+          mise run cask:python scripts/cleanup-fixtures.py verify-uninstall
       - name: Verify zap removes only app data
+        working-directory: homebrew-tap
         run: |
           brew uninstall --cask --zap --force naviapps/tap/kiseki
-          python3 homebrew-tap/scripts/verify-zap-removes-app-data.py
+          mise run cask:python scripts/cleanup-fixtures.py verify-zap
       - name: Uninstall
         if: always()
         run: |

@@ -6,7 +6,16 @@ ruff = "0.17.3"
 
 [tasks.check]
 description = "Check owned text, workflows with ShellCheck, and Python helpers"
-run = ["dprint check", "actionlint", "ruff check scripts", "ruff format --check scripts"]
+run = [
+  "dprint check",
+  'shellcheck="$(mise which shellcheck)" && actionlint "-shellcheck=$shellcheck" -pyflakes=',
+  "ruff check scripts tests",
+  "ruff format --check scripts tests",
+]
+
+[tasks."test:helpers"]
+description = "Verify cleanup fixture safety using temporary directories"
+run = "mise run cask:python -- -m unittest discover -s tests"
 
 [tasks."lint:cask"]
 description = "Check the local cask with Homebrew style (macOS)"
@@ -14,6 +23,11 @@ env.HOMEBREW_NO_AUTO_UPDATE = "1"
 env.HOMEBREW_DEVELOPER = "1"
 run = "brew style --cask ./Casks/kiseki.rb"
 
+[tasks."cask:python"]
+description = "Run a cask verification helper with the pinned Python"
+raw_args = true
+run = "mise exec python@3.15.1 -- python3 -B"
+
 [tasks.format]
 description = "Format owned Markdown, JSON, TOML, YAML, and Python"
-run = ["dprint fmt", "ruff format scripts"]
+run = ["dprint fmt", "ruff format scripts tests"]

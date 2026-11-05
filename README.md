@@ -61,15 +61,33 @@ After publishing a new stable Kiseki release, update `version` and `sha256` in
 verify it against the published `SHA256SUMS`. Do not replace existing release
 assets. `brew livecheck --cask naviapps/tap/kiseki` checks the latest stable release.
 
-On macOS with Homebrew, run local static checks from this checkout:
+Run the local static checks from this checkout:
 
 ```sh
 mise run check
-mise run lint:cask
 ```
 
 `check` uses dprint, actionlint with ShellCheck, and Ruff for the Python helpers.
+It does not need Homebrew or Python. On macOS with Homebrew, check the cask's style:
+
+```sh
+mise run lint:cask
+```
+
 `lint:cask` checks `./Casks/kiseki.rb` using Homebrew's style rules with auto-update disabled.
+The `cask:python` task pins Python separately for the verification helpers that run
+in the hosted macOS job.
+
+```sh
+mise run test:helpers
+```
+
+This uses the pinned Python to test cleanup fixtures in temporary directories,
+without Homebrew or the current user's Library. CI runs these tests before cask
+validation. Seeding requires the exact reviewed production cleanup paths and
+refuses existing paths or symlinked destinations. Verification rejects changed
+cleanup paths and fixture files replaced by symlinks; an empty cleanup list cannot
+turn a failed uninstall or zap into a passing check.
 
 Release validation additionally uses:
 
