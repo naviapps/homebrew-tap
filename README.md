@@ -15,8 +15,7 @@ Open Kiseki from Applications and follow its Accessibility permission guide.
 Homebrew installs the same signed and notarized disk image available on the
 [Kiseki releases page](https://github.com/naviapps/kiseki/releases).
 
-Free includes global gesture rules and three active app profiles, with unlimited
-saved profiles. Pro licensing and purchases remain with [Kiseki](https://kisekiapp.com/#pricing).
+For plans, license activation, and purchases, see [Kiseki billing help](https://kisekiapp.com/billing).
 
 ## Updates and removal
 
@@ -54,63 +53,10 @@ If you already installed Kiseki manually, keep using its built-in updater, or qu
 Kiseki and remove only its application bundle before installing through Homebrew.
 Do not force-install over an existing copy.
 
-## Maintenance
+## Packaging maintenance
 
-After publishing a new stable Kiseki release, update `version` and `sha256` in
-`Casks/kiseki.rb` using the final, stapled public DMG. Keep a versioned URL and
-verify it against the published `SHA256SUMS`. Do not replace existing release
-assets. `brew livecheck --cask naviapps/tap/kiseki` checks the latest stable release.
-
-Run the local static checks from this checkout:
-
-```sh
-mise run check
-```
-
-`check` uses dprint, actionlint with ShellCheck, and Ruff for the Python helpers.
-It does not need Homebrew or Python. On macOS with Homebrew, check the cask's style:
-
-```sh
-mise run lint:cask
-```
-
-`lint:cask` checks `./Casks/kiseki.rb` using Homebrew's style rules with auto-update disabled.
-The `cask:python` task pins Python separately for the verification helpers that run
-in the hosted macOS job.
-
-```sh
-mise run test:helpers
-```
-
-This uses the pinned Python to test cleanup fixtures in temporary directories,
-without Homebrew or the current user's Library. CI runs these tests before cask
-validation. Seeding requires the exact reviewed production cleanup paths and
-refuses existing paths or symlinked destinations. Verification rejects changed
-cleanup paths and fixture files replaced by symlinks; an empty cleanup list cannot
-turn a failed uninstall or zap into a passing check.
-
-Release validation additionally uses:
-
-```sh
-brew audit --strict --online --cask naviapps/tap/kiseki
-brew fetch --cask naviapps/tap/kiseki
-```
-
-Run these commands against the modified checkout at `brew --repository naviapps/tap`;
-Homebrew does not audit a separate clone by file path. CI taps the proposed checkout.
-Inspect `brew generate-zap naviapps/tap/kiseki` suggestions against the app's actual storage
-before changing cleanup paths: name matches can include QA apps, tests and CI
-workers. Keep paths specific to the production bundle ID; do not use bundle-prefix
-wildcards, remove shared directories or delete Keychain records with a script.
-
-CI checks the proposed checkout against the published checksum manifest, installs
-into a temporary app directory, and verifies app metadata, both architectures,
-signatures and Gatekeeper acceptance. It then checks that ordinary uninstall
-preserves fixture data and explicit zap removes only the declared app data.
-Cleanup fixtures run only on disposable GitHub-hosted runners; Kiseki is never
-launched. Do not run zap against an existing installation as a packaging test.
-This repository contains packaging metadata only. Its MIT license does not apply
-to the Kiseki application, which is covered by [its own terms](https://kisekiapp.com/terms).
+See [the maintainer guide](docs/MAINTENANCE.md) for release metadata, local checks,
+and CI installation and cleanup validation.
 
 For app issues, use [Kiseki support](https://github.com/naviapps/kiseki/issues).
 For billing or private account details, email support@kisekiapp.com.
