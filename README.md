@@ -98,6 +98,7 @@ Release validation additionally uses:
 ```sh
 brew audit --strict --online --cask naviapps/tap/kiseki
 brew fetch --cask naviapps/tap/kiseki
+brew --cache --cask naviapps/tap/kiseki
 ```
 
 Run these commands against the modified checkout at `brew --repository naviapps/tap`;
@@ -122,11 +123,13 @@ workers. Keep paths specific to the production bundle ID; do not use bundle-pref
 wildcards, remove shared directories or delete Keychain records with a script.
 
 CI checks the proposed checkout and versioned Sparkle feed against the published
-checksum manifest, then installs into a temporary app directory. It checks the
-bundle identifier, version, minimum macOS version, and both required slices in
-the executable named by the bundle. Signature and Gatekeeper checks run
-separately. CI then checks that ordinary uninstall preserves fixture data and
-explicit zap removes only the declared app data.
+checksum manifest. Before installing, it verifies the checksum and Sparkle file
+size for the DMG fetched by Homebrew, validates its stapled ticket, and assesses
+the disk image with Gatekeeper. After installing into a temporary app directory,
+CI checks the bundle identifier, version, minimum macOS version, and both
+required slices in the executable named by the bundle. It separately verifies
+the installed app's signature and Gatekeeper status. CI then checks that ordinary
+uninstall preserves fixture data and explicit zap removes only the declared app data.
 Cleanup fixtures run only on disposable GitHub-hosted runners; Kiseki is never
 launched. Do not run zap against an existing installation as a packaging test.
 This repository contains packaging metadata only. Its MIT license does not apply

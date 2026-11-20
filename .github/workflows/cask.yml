@@ -49,6 +49,14 @@ jobs:
           mise run cask:python scripts/verify-published-checksum.py --verify-appcast
       - name: Audit
         run: brew audit --strict --online --cask naviapps/tap/kiseki
+      - name: Verify the downloaded disk image
+        working-directory: homebrew-tap
+        run: |
+          brew fetch --cask naviapps/tap/kiseki
+          dmg_path="$(brew --cache --cask naviapps/tap/kiseki)"
+          mise run cask:python scripts/verify-published-checksum.py --verify-appcast --dmg "$dmg_path"
+          xcrun stapler validate "$dmg_path"
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg_path"
       - name: Install and verify
         working-directory: homebrew-tap
         run: |
