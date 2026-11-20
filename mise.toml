@@ -21,7 +21,7 @@ run = "mise run cask:python -- -m unittest discover -s tests"
 description = "Check the local cask with Homebrew style (macOS)"
 env.HOMEBREW_NO_AUTO_UPDATE = "1"
 env.HOMEBREW_DEVELOPER = "1"
-run = "brew style --cask ./Casks/kiseki.rb"
+run = "brew style ./Casks/kiseki.rb"
 
 [tasks."cask:python"]
 description = "Run a cask verification helper with the pinned Python"
