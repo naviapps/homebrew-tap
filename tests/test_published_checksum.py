@@ -4,7 +4,7 @@ import io
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 SPECIFICATION = importlib.util.spec_from_file_location(
@@ -17,6 +17,23 @@ ARTIFACT = b"owned DMG fixture"
 DIGEST = hashlib.sha256(ARTIFACT).hexdigest()
 RELEASE = "https://github.com/naviapps/kiseki/releases/download/v1.2.3"
 DMG_ENTRY = f"{DIGEST}  Kiseki.dmg\n".encode()
+ENCLOSURE = (
+    f'<enclosure url="{RELEASE}/Kiseki.dmg" length="{len(ARTIFACT)}" '
+    'sparkle:edSignature="fixture"/>'
+)
+APPCAST = f"""<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <item>
+      <sparkle:version>42</sparkle:version>
+      <sparkle:shortVersionString>1.2.3</sparkle:shortVersionString>
+      {ENCLOSURE}
+    </item>
+  </channel>
+</rss>""".encode()
+
+
+def appcast_entry(appcast):
+    return f"{hashlib.sha256(appcast).hexdigest()}  appcast.xml\n".encode()
 
 
 class Response(io.BytesIO):
@@ -137,3 +154,115 @@ class PublishedChecksumTests(unittest.TestCase):
                 self.assertRaisesRegex(ValueError, "Local DMG checksum differs"),
             ):
                 verifier.verify({"casks": [self.cask()]}, dmg)
+
+    def test_fetches_the_exact_published_appcast(self):
+        responses = [Response(DMG_ENTRY + appcast_entry(APPCAST)), Response(APPCAST)]
+        with patch.object(verifier, "urlopen", side_effect=responses) as request:
+            self.assertEqual(
+                verifier.verify({"casks": [self.cask()]}, check_appcast=True),
+                ("1.2.3", DIGEST),
+            )
+            self.assertEqual(
+                request.call_args_list,
+                [
+                    call(f"{RELEASE}/SHA256SUMS", timeout=30),
+                    call(f"{RELEASE}/appcast.xml", timeout=30),
+                ],
+            )
+
+    def test_requires_the_appcast_checksum_before_fetching_its_bytes(self):
+        for entries in (b"", appcast_entry(APPCAST) * 2):
+            with (
+                self.subTest(entries=entries),
+                patch.object(
+                    verifier, "urlopen", return_value=Response(DMG_ENTRY + entries)
+                ) as request,
+                self.assertRaisesRegex(ValueError, r"exactly one appcast\.xml entry"),
+            ):
+                verifier.verify({"casks": [self.cask()]}, check_appcast=True)
+            request.assert_called_once_with(f"{RELEASE}/SHA256SUMS", timeout=30)
+
+    def test_rejects_appcast_bytes_that_do_not_match_the_manifest(self):
+        responses = [
+            Response(DMG_ENTRY + appcast_entry(APPCAST)),
+            Response(b"changed bytes"),
+        ]
+        with (
+            patch.object(verifier, "urlopen", side_effect=responses),
+            self.assertRaisesRegex(ValueError, r"appcast\.xml checksum differs"),
+        ):
+            verifier.verify({"casks": [self.cask()]}, check_appcast=True)
+
+    def test_rejects_inconsistent_appcast_metadata_even_with_matching_digests(self):
+        for appcast, error in (
+            (b"<rss", r"Malformed published appcast\.xml"),
+            (b"<!DOCTYPE rss>" + APPCAST, "document type declaration"),
+            (APPCAST.replace(b"</item>", b"</item><item/>"), "one release item"),
+            (APPCAST.replace(b">1.2.3<", b">1.2.4<"), "marketing version"),
+            (
+                APPCAST.replace(
+                    b"http://www.andymatuschak.org", b"https://invalid.test"
+                ),
+                "marketing version",
+            ),
+            (APPCAST.replace(b">42<", b">build<"), "numeric Sparkle build number"),
+            (APPCAST.replace(ENCLOSURE.encode(), b""), "exact GitHub release tag"),
+            (
+                APPCAST.replace(ENCLOSURE.encode(), ENCLOSURE.encode() * 2),
+                "exact GitHub release tag",
+            ),
+            (
+                APPCAST.replace(b"download/v1.2.3/", b"download/v1.2.4/"),
+                "exact GitHub release tag",
+            ),
+            (
+                APPCAST.replace(b' sparkle:edSignature="fixture"', b""),
+                "signature metadata",
+            ),
+            (
+                APPCAST.replace(f'length="{len(ARTIFACT)}"'.encode(), b'length="0"'),
+                "positive disk-image length",
+            ),
+        ):
+            responses = [
+                Response(DMG_ENTRY + appcast_entry(appcast)),
+                Response(appcast),
+            ]
+            with (
+                self.subTest(error=error, appcast=appcast),
+                patch.object(verifier, "urlopen", side_effect=responses),
+                self.assertRaisesRegex(ValueError, error),
+            ):
+                verifier.verify({"casks": [self.cask()]}, check_appcast=True)
+
+    def test_bounds_the_published_appcast(self):
+        appcast = b" " * (verifier.MAXIMUM_APPCAST_BYTES + 1)
+        responses = [Response(DMG_ENTRY + appcast_entry(appcast)), Response(appcast)]
+        with (
+            patch.object(verifier, "urlopen", side_effect=responses),
+            self.assertRaisesRegex(ValueError, r"appcast\.xml exceeds the size limit"),
+        ):
+            verifier.verify({"casks": [self.cask()]}, check_appcast=True)
+
+    def test_matches_a_local_dmg_length_against_the_enclosure_when_requested(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dmg = Path(directory) / "Kiseki.dmg"
+            dmg.write_bytes(ARTIFACT)
+            valid = [Response(DMG_ENTRY + appcast_entry(APPCAST)), Response(APPCAST)]
+            with patch.object(verifier, "urlopen", side_effect=valid):
+                self.assertEqual(
+                    verifier.verify({"casks": [self.cask()]}, dmg, check_appcast=True),
+                    ("1.2.3", DIGEST),
+                )
+            wrong_length = APPCAST.replace(
+                f'length="{len(ARTIFACT)}"'.encode(), b'length="1"'
+            )
+            responses = [
+                Response(DMG_ENTRY + appcast_entry(wrong_length)),
+                Response(wrong_length),
+            ]
+            with (
+                patch.object(verifier, "urlopen", side_effect=responses),
+                self.assertRaisesRegex(ValueError, "Local DMG length differs"),
+            ):
+                verifier.verify({"casks": [self.cask()]}, dmg, check_appcast=True)

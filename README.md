@@ -109,21 +109,24 @@ installing the cask, save the metadata from the active tap and run the checksum 
 cask_info=$(mktemp)
 HOMEBREW_NO_AUTO_UPDATE=1 brew info --json=v2 --cask naviapps/tap/kiseki > "$cask_info"
 mise run cask:python scripts/verify-published-checksum.py \
-  --cask-info "$cask_info" --dmg /path/to/Kiseki.dmg
+  --cask-info "$cask_info" --dmg /path/to/Kiseki.dmg --verify-appcast
 ```
 
-Omit `--dmg` to check the cask's canonical release URL and published checksum only.
+`--verify-appcast` checks the same tag's Sparkle feed against the release manifest
+and verifies that its update points to the Cask's versioned DMG. With `--dmg`, it
+also compares the downloaded file size with the update enclosure. Omit both
+options to check the cask's release URL and published checksum alone.
 Inspect `brew generate-zap naviapps/tap/kiseki` suggestions against the app's actual storage
 before changing cleanup paths: name matches can include QA apps, tests and CI
 workers. Keep paths specific to the production bundle ID; do not use bundle-prefix
 wildcards, remove shared directories or delete Keychain records with a script.
 
-CI checks the proposed checkout against the published checksum manifest, then
-installs into a temporary app directory. It checks the bundle identifier, version,
-minimum macOS version, and both required slices in the executable named by the
-bundle. Signature and Gatekeeper checks run separately. CI then checks that
-ordinary uninstall preserves fixture data and explicit zap removes only the
-declared app data.
+CI checks the proposed checkout and versioned Sparkle feed against the published
+checksum manifest, then installs into a temporary app directory. It checks the
+bundle identifier, version, minimum macOS version, and both required slices in
+the executable named by the bundle. Signature and Gatekeeper checks run
+separately. CI then checks that ordinary uninstall preserves fixture data and
+explicit zap removes only the declared app data.
 Cleanup fixtures run only on disposable GitHub-hosted runners; Kiseki is never
 launched. Do not run zap against an existing installation as a packaging test.
 This repository contains packaging metadata only. Its MIT license does not apply

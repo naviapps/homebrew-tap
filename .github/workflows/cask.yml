@@ -42,11 +42,11 @@ jobs:
           if brew command trust >/dev/null 2>&1; then
             brew trust --cask naviapps/tap/kiseki
           fi
-      - name: Verify published checksum
+      - name: Verify published checksum and Sparkle metadata
         working-directory: homebrew-tap
         run: |
           brew info --json=v2 --cask naviapps/tap/kiseki > "${RUNNER_TEMP}/kiseki-cask.json"
-          mise run cask:python scripts/verify-published-checksum.py
+          mise run cask:python scripts/verify-published-checksum.py --verify-appcast
       - name: Audit
         run: brew audit --strict --online --cask naviapps/tap/kiseki
       - name: Install and verify
