@@ -64,6 +64,12 @@ jobs:
           mise run cask:python scripts/verify-installed-app.py
           codesign --verify --deep --strict --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
           spctl --assess --type execute --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
+      - name: Verify the Sparkle update signature
+        working-directory: homebrew-tap
+        run: |
+          dmg_path="$(brew --cache --cask naviapps/tap/kiseki)"
+          mise run cask:python scripts/verify-published-checksum.py --dmg "$dmg_path" \
+            --sparkle-bundle "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
       - name: Seed cleanup fixtures
         working-directory: homebrew-tap
         run: mise run cask:python scripts/cleanup-fixtures.py seed

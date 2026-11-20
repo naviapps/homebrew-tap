@@ -91,7 +91,8 @@ mise run test:helpers
 This tests the release checksum, installed bundle metadata, and cleanup fixtures
 without network access, Homebrew or the current user's Library. CI verifies exact
 production cleanup paths, refuses existing or symlinked fixture destinations, and
-checks ordinary uninstall and zap separately.
+checks ordinary uninstall and zap separately. On macOS the tests also use the
+selected Swift toolchain to exercise Ed25519 verification with public fixtures.
 
 Release validation additionally uses:
 
@@ -117,6 +118,10 @@ mise run cask:python scripts/verify-published-checksum.py \
 and verifies that its update points to the Cask's versioned DMG. With `--dmg`, it
 also compares the downloaded file size with the update enclosure. Omit both
 options to check the cask's release URL and published checksum alone.
+With `--dmg`, add `--sparkle-bundle /path/to/Kiseki.app` to verify the update
+signature using the supplied app's public key. Use a copy of the app whose code
+signature has been verified. This check uses CryptoKit via the macOS Swift
+toolchain.
 Inspect `brew generate-zap naviapps/tap/kiseki` suggestions against the app's actual storage
 before changing cleanup paths: name matches can include QA apps, tests and CI
 workers. Keep paths specific to the production bundle ID; do not use bundle-prefix
@@ -128,8 +133,10 @@ size for the DMG fetched by Homebrew, validates its stapled ticket, and assesses
 the disk image with Gatekeeper. After installing into a temporary app directory,
 CI checks the bundle identifier, version, minimum macOS version, and both
 required slices in the executable named by the bundle. It separately verifies
-the installed app's signature and Gatekeeper status. CI then checks that ordinary
-uninstall preserves fixture data and explicit zap removes only the declared app data.
+the installed app's signature and Gatekeeper status, then uses the app's public
+key to verify the Sparkle signature over the original DMG. CI checks that
+ordinary uninstall preserves fixture data and explicit zap removes only the
+declared app data.
 Cleanup fixtures run only on disposable GitHub-hosted runners; Kiseki is never
 launched. Do not run zap against an existing installation as a packaging test.
 This repository contains packaging metadata only. Its MIT license does not apply

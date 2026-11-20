@@ -2,7 +2,9 @@ import argparse
 import hashlib
 import json
 import os
+import plistlib
 import re
+import subprocess
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -46,7 +48,7 @@ def manifest_digests(contents, names):
     return {name: entries[0] for name, entries in hashes.items()}
 
 
-def appcast_dmg_length(contents, version, url):
+def appcast_enclosure(contents, version, url):
     text = contents.decode("utf-8")
     if "<!DOCTYPE" in text:
         raise ValueError(
@@ -75,15 +77,46 @@ def appcast_dmg_length(contents, version, url):
             "Appcast must reference Kiseki.dmg on its exact GitHub release tag"
         )
     enclosure = enclosures[0]
-    if not enclosure.get(SPARKLE + "edSignature", "").strip():
+    signature = enclosure.get(SPARKLE + "edSignature", "").strip()
+    if not signature:
         raise ValueError("Appcast must include Sparkle update signature metadata")
     length = enclosure.get("length", "")
     if not re.fullmatch(r"[1-9][0-9]*", length):
         raise ValueError("Appcast must declare a positive disk-image length")
-    return int(length)
+    return int(length), signature
 
 
-def verify(cask_info, dmg=None, *, check_appcast=False):
+def verify_sparkle_signature(dmg, digest, signature, bundle):
+    with (bundle / "Contents/Info.plist").open("rb") as stream:
+        metadata = plistlib.load(stream)
+    key = metadata.get("SUPublicEDKey") if isinstance(metadata, dict) else None
+    if not isinstance(key, str) or not key.strip():
+        raise ValueError(
+            "The signed bundle must provide a Sparkle public key in SUPublicEDKey"
+        )
+    verifier = Path(__file__).with_name("verify-sparkle-signature.swift")
+    try:
+        subprocess.run(
+            [
+                "/usr/bin/xcrun",
+                "swift",
+                "-warnings-as-errors",
+                str(verifier),
+                str(dmg),
+                digest,
+                key,
+                signature,
+            ],
+            check=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise ValueError("Sparkle update signature verification failed") from error
+
+
+def verify(cask_info, dmg=None, *, check_appcast=False, sparkle_bundle=None):
+    if sparkle_bundle is not None and dmg is None:
+        raise ValueError("Sparkle signature verification requires a local DMG")
+    check_appcast = check_appcast or sparkle_bundle is not None
     casks = cask_info.get("casks") if isinstance(cask_info, dict) else None
     if not isinstance(casks, list) or len(casks) != 1 or not isinstance(casks[0], dict):
         raise ValueError("Expected one Homebrew cask in brew info JSON")
@@ -113,11 +146,12 @@ def verify(cask_info, dmg=None, *, check_appcast=False):
         raise ValueError("Cask checksum differs from published SHA256SUMS")
 
     length = None
+    signature = None
     if check_appcast:
         appcast = download_asset(release, APPCAST, MAXIMUM_APPCAST_BYTES)
         if hashlib.sha256(appcast).hexdigest() != digests[APPCAST]:
             raise ValueError("Published appcast.xml checksum differs from SHA256SUMS")
-        length = appcast_dmg_length(appcast, version, url)
+        length, signature = appcast_enclosure(appcast, version, url)
 
     if dmg is not None:
         with dmg.open("rb") as stream:
@@ -129,6 +163,8 @@ def verify(cask_info, dmg=None, *, check_appcast=False):
             raise ValueError(
                 "Local DMG length differs from the published appcast enclosure"
             )
+        if sparkle_bundle is not None:
+            verify_sparkle_signature(dmg, expected, signature, sparkle_bundle)
     return version, expected
 
 
@@ -151,6 +187,11 @@ def main():
         action="store_true",
         help="Also verify the same release's Sparkle appcast metadata",
     )
+    parser.add_argument(
+        "--sparkle-bundle",
+        type=Path,
+        help="Also verify the Sparkle signature against the public key in this signed app bundle (requires --dmg)",
+    )
     args = parser.parse_args()
     if args.cask_info is None:
         parser.error("pass --cask-info or set RUNNER_TEMP")
@@ -159,6 +200,7 @@ def main():
             json.loads(args.cask_info.read_text()),
             args.dmg,
             check_appcast=args.verify_appcast,
+            sparkle_bundle=args.sparkle_bundle,
         )
     except (OSError, ValueError) as error:
         parser.exit(1, f"{error}\n")
@@ -166,8 +208,12 @@ def main():
     print(
         f"Verified Kiseki {version} cask{artifact} against published SHA256SUMS ({digest})."
     )
-    if args.verify_appcast:
+    if args.verify_appcast or args.sparkle_bundle is not None:
         print(f"Verified published {APPCAST} checksum and release metadata.")
+    if args.sparkle_bundle is not None:
+        print(
+            "Verified the Sparkle update signature over the DMG using the supplied bundle's public key."
+        )
 
 
 if __name__ == "__main__":

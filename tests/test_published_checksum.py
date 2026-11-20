@@ -1,6 +1,8 @@
 import hashlib
 import importlib.util
 import io
+import plistlib
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -266,3 +268,80 @@ class PublishedChecksumTests(unittest.TestCase):
                 self.assertRaisesRegex(ValueError, "Local DMG length differs"),
             ):
                 verifier.verify({"casks": [self.cask()]}, dmg, check_appcast=True)
+
+    def test_passes_the_verified_enclosure_and_bundle_key_to_crypto_verification(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dmg = root / "Kiseki.dmg"
+            dmg.write_bytes(ARTIFACT)
+            bundle = root / "Kiseki.app"
+            (bundle / "Contents").mkdir(parents=True)
+            (bundle / "Contents/Info.plist").write_bytes(
+                plistlib.dumps({"SUPublicEDKey": "fixture-key"})
+            )
+            responses = [
+                Response(DMG_ENTRY + appcast_entry(APPCAST)),
+                Response(APPCAST),
+            ]
+            with (
+                patch.object(verifier, "urlopen", side_effect=responses),
+                patch.object(verifier.subprocess, "run") as crypto,
+            ):
+                self.assertEqual(
+                    verifier.verify(
+                        {"casks": [self.cask()]}, dmg, sparkle_bundle=bundle
+                    ),
+                    ("1.2.3", DIGEST),
+                )
+            crypto.assert_called_once_with(
+                [
+                    "/usr/bin/xcrun",
+                    "swift",
+                    "-warnings-as-errors",
+                    str(REPOSITORY / "scripts/verify-sparkle-signature.swift"),
+                    str(dmg),
+                    DIGEST,
+                    "fixture-key",
+                    "fixture",
+                ],
+                check=True,
+            )
+
+    def test_requires_the_signed_bundle_key_and_native_verification_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            bundle = Path(directory) / "Kiseki.app"
+            (bundle / "Contents").mkdir(parents=True)
+            plist = bundle / "Contents/Info.plist"
+            for metadata in ({}, {"SUPublicEDKey": 1}, {"SUPublicEDKey": " "}):
+                plist.write_bytes(plistlib.dumps(metadata))
+                with (
+                    self.subTest(metadata=metadata),
+                    patch.object(verifier.subprocess, "run") as crypto,
+                    self.assertRaisesRegex(ValueError, "provide a Sparkle public key"),
+                ):
+                    verifier.verify_sparkle_signature(
+                        "Kiseki.dmg", DIGEST, "fixture", bundle
+                    )
+                crypto.assert_not_called()
+            plist.write_bytes(plistlib.dumps({"SUPublicEDKey": "fixture-key"}))
+            with (
+                patch.object(
+                    verifier.subprocess,
+                    "run",
+                    side_effect=subprocess.CalledProcessError(1, "swift"),
+                ),
+                self.assertRaisesRegex(
+                    ValueError, "Sparkle update signature verification failed"
+                ),
+            ):
+                verifier.verify_sparkle_signature(
+                    "Kiseki.dmg", DIGEST, "fixture", bundle
+                )
+
+    def test_requires_a_dmg_before_requesting_signature_metadata(self):
+        with (
+            patch.object(verifier, "urlopen") as request,
+            self.assertRaisesRegex(ValueError, "requires a local DMG"),
+        ):
+            verifier.verify({"casks": [self.cask()]}, sparkle_bundle=Path("Kiseki.app"))
+        request.assert_not_called()
