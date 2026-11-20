@@ -88,10 +88,10 @@ in the hosted macOS job.
 mise run test:helpers
 ```
 
-This tests cleanup fixtures in temporary directories without Homebrew or the
-current user's Library. CI verifies exact production cleanup paths, refuses
-existing or symlinked fixture destinations, and checks ordinary uninstall and zap
-separately.
+This tests release metadata and cleanup fixtures without network access, Homebrew
+or the current user's Library. CI verifies exact production cleanup paths,
+refuses existing or symlinked fixture destinations, and checks ordinary uninstall
+and zap separately.
 
 Release validation additionally uses:
 
@@ -102,6 +102,17 @@ brew fetch --cask naviapps/tap/kiseki
 
 Run these commands against the modified checkout at `brew --repository naviapps/tap`;
 Homebrew does not audit a separate clone by file path. CI taps the proposed checkout.
+To verify the versioned release manifest and an already downloaded DMG without
+installing the cask, save the metadata from the active tap and run the checksum helper:
+
+```sh
+cask_info=$(mktemp)
+HOMEBREW_NO_AUTO_UPDATE=1 brew info --json=v2 --cask naviapps/tap/kiseki > "$cask_info"
+mise run cask:python scripts/verify-published-checksum.py \
+  --cask-info "$cask_info" --dmg /path/to/Kiseki.dmg
+```
+
+Omit `--dmg` to check the cask's canonical release URL and published checksum only.
 Inspect `brew generate-zap naviapps/tap/kiseki` suggestions against the app's actual storage
 before changing cleanup paths: name matches can include QA apps, tests and CI
 workers. Keep paths specific to the production bundle ID; do not use bundle-prefix
