@@ -32,6 +32,7 @@ class InstalledAppTests(unittest.TestCase):
             "CFBundleShortVersionString": "1.2.3",
             "CFBundleExecutable": "Kiseki",
             "LSMinimumSystemVersion": "26.0",
+            "SUFeedURL": "https://github.com/naviapps/kiseki/releases/latest/download/appcast.xml",
         }
         self.write_metadata({"casks": [self.cask]})
         self.write_plist()
@@ -88,6 +89,29 @@ class InstalledAppTests(unittest.TestCase):
             ):
                 self.write_plist(LSMinimumSystemVersion=minimum)
                 installer.verify(self.root)
+
+    def test_requires_the_public_update_feed_before_lipo(self):
+        plist = self.contents / "Info.plist"
+        metadata = self.plist.copy()
+        del metadata["SUFeedURL"]
+        for feed in (
+            {},
+            {"SUFeedURL": False},
+            {"SUFeedURL": "https://downloads.kisekiapp.com/appcast.xml"},
+            {
+                "SUFeedURL": "https://github.com/naviapps/kiseki/releases/download/v1.2.3/appcast.xml"
+            },
+        ):
+            with (
+                self.subTest(feed=feed),
+                patch.object(installer.subprocess, "check_output") as lipo,
+                self.assertRaisesRegex(
+                    ValueError, "Installed SUFeedURL must match the public update feed"
+                ),
+            ):
+                plist.write_bytes(plistlib.dumps(metadata | feed))
+                installer.verify(self.root)
+            lipo.assert_not_called()
 
     def test_requires_single_cask_and_single_minimum(self):
         for metadata, error in (

@@ -5,6 +5,8 @@ import re
 import subprocess
 from pathlib import Path
 
+UPDATE_FEED = "https://github.com/naviapps/kiseki/releases/latest/download/appcast.xml"
+
 
 def macos_version(value):
     if not isinstance(value, str) or not re.fullmatch(
@@ -44,6 +46,10 @@ def verify(root):
         raise ValueError("Installed bundle identifier must be com.naviapps.Kiseki")
     if info.get("CFBundleShortVersionString") != version:
         raise ValueError(f"Installed bundle version must match cask version {version}")
+    if info.get("SUFeedURL") != UPDATE_FEED:
+        raise ValueError(
+            f"Installed SUFeedURL must match the public update feed {UPDATE_FEED}"
+        )
     if macos_version(info.get("LSMinimumSystemVersion")) != macos_version(minimum[0]):
         raise ValueError(
             f"Installed bundle must match the cask's macOS {minimum[0]} minimum"
