@@ -14,7 +14,7 @@ run = [
 ]
 
 [tasks."test:helpers"]
-description = "Test release checksum and cleanup helpers with fixtures"
+description = "Test release checksum, installed metadata and cleanup with fixtures"
 run = "mise run cask:python -- -m unittest discover -s tests"
 
 [tasks."lint:cask"]

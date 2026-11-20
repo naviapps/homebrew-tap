@@ -88,10 +88,10 @@ in the hosted macOS job.
 mise run test:helpers
 ```
 
-This tests release metadata and cleanup fixtures without network access, Homebrew
-or the current user's Library. CI verifies exact production cleanup paths,
-refuses existing or symlinked fixture destinations, and checks ordinary uninstall
-and zap separately.
+This tests the release checksum, installed bundle metadata, and cleanup fixtures
+without network access, Homebrew or the current user's Library. CI verifies exact
+production cleanup paths, refuses existing or symlinked fixture destinations, and
+checks ordinary uninstall and zap separately.
 
 Release validation additionally uses:
 
@@ -118,10 +118,12 @@ before changing cleanup paths: name matches can include QA apps, tests and CI
 workers. Keep paths specific to the production bundle ID; do not use bundle-prefix
 wildcards, remove shared directories or delete Keychain records with a script.
 
-CI checks the proposed checkout against the published checksum manifest, installs
-into a temporary app directory, and verifies app metadata, both architectures,
-signatures and Gatekeeper acceptance. It then checks that ordinary uninstall
-preserves fixture data and explicit zap removes only the declared app data.
+CI checks the proposed checkout against the published checksum manifest, then
+installs into a temporary app directory. It checks the bundle identifier, version,
+minimum macOS version, and both required slices in the executable named by the
+bundle. Signature and Gatekeeper checks run separately. CI then checks that
+ordinary uninstall preserves fixture data and explicit zap removes only the
+declared app data.
 Cleanup fixtures run only on disposable GitHub-hosted runners; Kiseki is never
 launched. Do not run zap against an existing installation as a packaging test.
 This repository contains packaging metadata only. Its MIT license does not apply
