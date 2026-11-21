@@ -17,6 +17,11 @@ SPECIFICATION.loader.exec_module(verifier)
 
 ARTIFACT = b"owned DMG fixture"
 DIGEST = hashlib.sha256(ARTIFACT).hexdigest()
+BUNDLE_METADATA = {
+    "CFBundleShortVersionString": "1.2.3",
+    "CFBundleVersion": "42",
+    "SUPublicEDKey": "fixture-key",
+}
 RELEASE = "https://github.com/naviapps/kiseki/releases/download/v1.2.3"
 DMG_ENTRY = f"{DIGEST}  Kiseki.dmg\n".encode()
 ENCLOSURE = (
@@ -277,7 +282,7 @@ class PublishedChecksumTests(unittest.TestCase):
             bundle = root / "Kiseki.app"
             (bundle / "Contents").mkdir(parents=True)
             (bundle / "Contents/Info.plist").write_bytes(
-                plistlib.dumps({"SUPublicEDKey": "fixture-key"})
+                plistlib.dumps(BUNDLE_METADATA)
             )
             responses = [
                 Response(DMG_ENTRY + appcast_entry(APPCAST)),
@@ -307,6 +312,39 @@ class PublishedChecksumTests(unittest.TestCase):
                 check=True,
             )
 
+    def test_rejects_a_bundle_from_a_different_release_before_crypto_verification(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dmg = root / "Kiseki.dmg"
+            dmg.write_bytes(ARTIFACT)
+            bundle = root / "Kiseki.app"
+            (bundle / "Contents").mkdir(parents=True)
+            plist = bundle / "Contents/Info.plist"
+            for changes, error in (
+                ({"CFBundleVersion": "41"}, "bundle build must match appcast build 42"),
+                (
+                    {"CFBundleShortVersionString": "1.2.4"},
+                    "bundle marketing version must match cask version 1.2.3",
+                ),
+            ):
+                plist.write_bytes(plistlib.dumps(BUNDLE_METADATA | changes))
+                responses = [
+                    Response(DMG_ENTRY + appcast_entry(APPCAST)),
+                    Response(APPCAST),
+                ]
+                with (
+                    self.subTest(changes=changes),
+                    patch.object(verifier, "urlopen", side_effect=responses),
+                    patch.object(verifier.subprocess, "run") as crypto,
+                ):
+                    with self.assertRaisesRegex(ValueError, error):
+                        verifier.verify(
+                            {"casks": [self.cask()]}, dmg, sparkle_bundle=bundle
+                        )
+                    crypto.assert_not_called()
+
     def test_requires_the_signed_bundle_key_and_native_verification_success(self):
         with tempfile.TemporaryDirectory() as directory:
             bundle = Path(directory) / "Kiseki.app"
@@ -320,10 +358,15 @@ class PublishedChecksumTests(unittest.TestCase):
                     self.assertRaisesRegex(ValueError, "provide a Sparkle public key"),
                 ):
                     verifier.verify_sparkle_signature(
-                        "Kiseki.dmg", DIGEST, "fixture", bundle
+                        "Kiseki.dmg",
+                        DIGEST,
+                        "fixture",
+                        bundle,
+                        version="1.2.3",
+                        build="42",
                     )
                 crypto.assert_not_called()
-            plist.write_bytes(plistlib.dumps({"SUPublicEDKey": "fixture-key"}))
+            plist.write_bytes(plistlib.dumps(BUNDLE_METADATA))
             with (
                 patch.object(
                     verifier.subprocess,
@@ -335,7 +378,7 @@ class PublishedChecksumTests(unittest.TestCase):
                 ),
             ):
                 verifier.verify_sparkle_signature(
-                    "Kiseki.dmg", DIGEST, "fixture", bundle
+                    "Kiseki.dmg", DIGEST, "fixture", bundle, version="1.2.3", build="42"
                 )
 
     def test_requires_a_dmg_before_requesting_signature_metadata(self):

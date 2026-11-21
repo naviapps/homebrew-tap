@@ -83,10 +83,10 @@ def appcast_enclosure(contents, version, url):
     length = enclosure.get("length", "")
     if not re.fullmatch(r"[1-9][0-9]*", length):
         raise ValueError("Appcast must declare a positive disk-image length")
-    return int(length), signature
+    return int(length), signature, builds[0].text
 
 
-def verify_sparkle_signature(dmg, digest, signature, bundle):
+def verify_sparkle_signature(dmg, digest, signature, bundle, *, version, build):
     with (bundle / "Contents/Info.plist").open("rb") as stream:
         metadata = plistlib.load(stream)
     key = metadata.get("SUPublicEDKey") if isinstance(metadata, dict) else None
@@ -94,6 +94,12 @@ def verify_sparkle_signature(dmg, digest, signature, bundle):
         raise ValueError(
             "The signed bundle must provide a Sparkle public key in SUPublicEDKey"
         )
+    if metadata.get("CFBundleShortVersionString") != version:
+        raise ValueError(
+            f"Signed bundle marketing version must match cask version {version}"
+        )
+    if metadata.get("CFBundleVersion") != build:
+        raise ValueError(f"Signed bundle build must match appcast build {build}")
     verifier = Path(__file__).with_name("verify-sparkle-signature.swift")
     try:
         subprocess.run(
@@ -147,11 +153,12 @@ def verify(cask_info, dmg=None, *, check_appcast=False, sparkle_bundle=None):
 
     length = None
     signature = None
+    build = None
     if check_appcast:
         appcast = download_asset(release, APPCAST, MAXIMUM_APPCAST_BYTES)
         if hashlib.sha256(appcast).hexdigest() != digests[APPCAST]:
             raise ValueError("Published appcast.xml checksum differs from SHA256SUMS")
-        length, signature = appcast_enclosure(appcast, version, url)
+        length, signature, build = appcast_enclosure(appcast, version, url)
 
     if dmg is not None:
         with dmg.open("rb") as stream:
@@ -164,7 +171,9 @@ def verify(cask_info, dmg=None, *, check_appcast=False, sparkle_bundle=None):
                 "Local DMG length differs from the published appcast enclosure"
             )
         if sparkle_bundle is not None:
-            verify_sparkle_signature(dmg, expected, signature, sparkle_bundle)
+            verify_sparkle_signature(
+                dmg, expected, signature, sparkle_bundle, version=version, build=build
+            )
     return version, expected
 
 
@@ -190,7 +199,7 @@ def main():
     parser.add_argument(
         "--sparkle-bundle",
         type=Path,
-        help="Also verify the Sparkle signature against the public key in this signed app bundle (requires --dmg)",
+        help="Match the appcast version and build to the signed bundle and verify the Sparkle signature (requires --dmg)",
     )
     args = parser.parse_args()
     if args.cask_info is None:

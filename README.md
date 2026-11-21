@@ -118,10 +118,10 @@ mise run cask:python scripts/verify-published-checksum.py \
 and verifies that its update points to the Cask's versioned DMG. With `--dmg`, it
 also compares the downloaded file size with the update enclosure. Omit both
 options to check the cask's release URL and published checksum alone.
-With `--dmg`, add `--sparkle-bundle /path/to/Kiseki.app` to verify the update
-signature using the supplied app's public key. Use a copy of the app whose code
-signature has been verified. This check uses CryptoKit via the macOS Swift
-toolchain.
+With `--dmg`, add `--sparkle-bundle /path/to/Kiseki.app` to match the appcast
+version and build to the bundle before verifying the update signature. Use an
+app from the same release whose code signature has been verified. This check
+uses CryptoKit via the macOS Swift toolchain.
 Inspect `brew generate-zap naviapps/tap/kiseki` suggestions against the app's actual storage
 before changing cleanup paths: name matches can include QA apps, tests and CI
 workers. Keep paths specific to the production bundle ID; do not use bundle-prefix
