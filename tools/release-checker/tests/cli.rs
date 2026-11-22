@@ -16,6 +16,7 @@ fn help_and_missing_or_malformed_options_use_the_cli_contract() {
         "--dmg",
         "--verify-appcast",
         "--sparkle-bundle",
+        "--verify-installed",
         "RUNNER_TEMP",
     ] {
         assert!(stdout.contains(expected));
@@ -24,10 +25,30 @@ fn help_and_missing_or_malformed_options_use_the_cli_contract() {
         (vec![], "pass --cask-info or set RUNNER_TEMP"),
         (vec!["--verify-appcast=1"], "Unrecognized argument"),
         (vec!["--dmg", "--verify-appcast"], "requires a path"),
+        (
+            vec!["--verify-installed", "--verify-appcast"],
+            "--verify-installed takes no other arguments",
+        ),
     ] {
         let result = verifier().args(arguments).output().unwrap();
         assert_eq!(result.status.code(), Some(2));
         assert!(String::from_utf8(result.stderr).unwrap().contains(message));
+    }
+}
+
+#[test]
+fn installed_mode_requires_the_runner_temp_location() {
+    for directory in [None, Some("")] {
+        let mut command = verifier();
+        if let Some(directory) = directory {
+            command.env("RUNNER_TEMP", directory);
+        }
+        let result = command.arg("--verify-installed").output().unwrap();
+        assert_eq!(result.status.code(), Some(1));
+        assert_eq!(
+            String::from_utf8(result.stderr).unwrap().trim(),
+            "RUNNER_TEMP must hold the cask metadata and test app directory",
+        );
     }
 }
 

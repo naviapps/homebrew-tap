@@ -16,7 +16,7 @@ const SPARKLE: &str = "http://www.andymatuschak.org/xml-namespaces/sparkle";
 const MAXIMUM_MANIFEST_BYTES: usize = 64 * 1024;
 const MAXIMUM_APPCAST_BYTES: usize = 1024 * 1024;
 // The previous verifier used Python's default decimal conversion limit.
-const MAXIMUM_LENGTH_DIGITS: usize = 4300;
+pub(crate) const MAXIMUM_DECIMAL_DIGITS: usize = 4300;
 
 pub(crate) struct Cask {
     pub(crate) version: String,
@@ -38,7 +38,7 @@ pub(crate) struct Request<'a> {
     pub(crate) bundle: Option<&'a Path>,
 }
 
-fn decimal(text: &str) -> bool {
+pub(crate) fn decimal(text: &str) -> bool {
     !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_digit())
 }
 
@@ -54,7 +54,7 @@ fn positive_decimal(text: &str) -> bool {
     !text.starts_with('0') && decimal(text)
 }
 
-fn cask(info: &Value) -> Result<Cask, String> {
+pub(crate) fn cask_entry(info: &Value) -> Result<&Value, String> {
     let Some([entry]) = info["casks"].as_array().map(Vec::as_slice) else {
         return Err("Expected one Homebrew cask in brew info JSON".into());
     };
@@ -64,6 +64,11 @@ fn cask(info: &Value) -> Result<Cask, String> {
     if entry["full_token"].as_str() != Some("naviapps/tap/kiseki") {
         return Err("Expected the naviapps/tap/kiseki cask".into());
     }
+    Ok(entry)
+}
+
+fn cask(info: &Value) -> Result<Cask, String> {
+    let entry = cask_entry(info)?;
     let version = entry["version"]
         .as_str()
         .filter(|text| version_number(text))
@@ -204,7 +209,7 @@ fn appcast_enclosure(contents: &[u8], cask: &Cask) -> Result<Enclosure, String> 
         .attribute("length")
         .filter(|value| positive_decimal(value))
         .ok_or("Appcast must declare a positive disk-image length")?;
-    if length.len() > MAXIMUM_LENGTH_DIGITS {
+    if length.len() > MAXIMUM_DECIMAL_DIGITS {
         return Err("Appcast disk-image length exceeds the decimal digit limit".into());
     }
     Ok(Enclosure {

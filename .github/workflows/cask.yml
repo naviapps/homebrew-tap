@@ -64,7 +64,7 @@ jobs:
         working-directory: homebrew-tap
         run: |
           brew install --cask --require-sha --appdir="${RUNNER_TEMP}/kiseki-apps" naviapps/tap/kiseki
-          mise run cask:python scripts/verify-installed-app.py
+          mise run cask:verify -- --verify-installed
           codesign --verify --deep --strict --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
           spctl --assess --type execute --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
       - name: Verify the Sparkle update signature

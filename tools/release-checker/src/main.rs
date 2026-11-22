@@ -1,17 +1,26 @@
 #![forbid(unsafe_code)]
 
-use std::{env, ffi::OsString, fs, path::PathBuf, process::ExitCode};
+use std::{
+    env,
+    ffi::OsString,
+    fs,
+    path::{Path, PathBuf},
+    process::ExitCode,
+};
 
 mod command;
+mod installed;
 mod release;
 
 const USAGE: &str = "Usage: kiseki-cask-release-checker [--cask-info PATH] [--dmg PATH] [--verify-appcast] [--sparkle-bundle PATH]\n\
-Verify the cask against its exact public release.\n\n\
+       kiseki-cask-release-checker --verify-installed\n\
+Verify the cask against its exact public release or a disposable installation.\n\n\
   --cask-info PATH       JSON from brew info --json=v2 --cask naviapps/tap/kiseki\n\
                          Defaults to kiseki-cask.json in RUNNER_TEMP\n\
   --dmg PATH             Also verify an already downloaded DMG\n\
   --verify-appcast       Also verify the release's Sparkle appcast metadata\n\
-  --sparkle-bundle PATH  Match the appcast to the signed bundle and verify the signature. Requires --dmg.";
+  --sparkle-bundle PATH  Match the appcast to the signed bundle and verify the signature. Requires --dmg.\n\
+  --verify-installed    Check the bundle and cask metadata in RUNNER_TEMP";
 
 #[derive(Default)]
 struct Arguments {
@@ -75,11 +84,15 @@ fn parse_arguments(
     Ok(Some(arguments))
 }
 
+fn read_cask(path: &Path) -> Result<serde_json::Value, String> {
+    let contents =
+        fs::read(path).map_err(|error| format!("Could not read {}: {error}", path.display()))?;
+    serde_json::from_slice(&contents)
+        .map_err(|error| format!("Could not parse Homebrew cask JSON: {error}"))
+}
+
 fn run(arguments: Arguments) -> Result<(), String> {
-    let contents = fs::read(&arguments.cask_info)
-        .map_err(|error| format!("Could not read {}: {error}", arguments.cask_info.display()))?;
-    let info = serde_json::from_slice(&contents)
-        .map_err(|error| format!("Could not parse Homebrew cask JSON: {error}"))?;
+    let info = read_cask(&arguments.cask_info)?;
     let cask = release::verify(
         release::Request {
             cask_info: &info,
@@ -113,18 +126,31 @@ fn run(arguments: Arguments) -> Result<(), String> {
     Ok(())
 }
 
+fn finish(result: Result<(), String>) -> ExitCode {
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
 fn main() -> ExitCode {
-    match parse_arguments(
-        env::args_os().skip(1).peekable(),
-        env::var_os("RUNNER_TEMP"),
-    ) {
-        Ok(Some(arguments)) => match run(arguments) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(error) => {
-                eprintln!("{error}");
-                ExitCode::FAILURE
-            }
-        },
+    let mut args = env::args_os().skip(1).peekable();
+    let runner_temp = env::var_os("RUNNER_TEMP");
+    if args
+        .next_if(|argument| argument == "--verify-installed")
+        .is_some()
+    {
+        if args.next().is_some() {
+            eprintln!("{USAGE}\n--verify-installed takes no other arguments");
+            return ExitCode::from(2);
+        }
+        return finish(installed::run(runner_temp));
+    }
+    match parse_arguments(args, runner_temp) {
+        Ok(Some(arguments)) => finish(run(arguments)),
         Ok(None) => {
             println!("{USAGE}");
             ExitCode::SUCCESS

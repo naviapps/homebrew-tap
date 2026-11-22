@@ -135,9 +135,10 @@ CI checks the proposed checkout and versioned Sparkle feed against the published
 checksum manifest. Before installing, it verifies the checksum and Sparkle file
 size for the DMG fetched by Homebrew, validates its stapled ticket, and assesses
 the disk image with Gatekeeper. After installing into a temporary app directory,
-CI checks the bundle identifier, version, minimum macOS version, configured
-Sparkle update feed, and both required slices in the executable named by the
-bundle. It separately verifies the installed app's signature and Gatekeeper
+`mise run cask:verify -- --verify-installed` reads the Cask and bundle from
+`RUNNER_TEMP`. It checks the bundle identifier, version, minimum macOS version,
+configured Sparkle update feed, and both required slices in the executable named
+by the bundle. CI separately verifies the installed app's signature and Gatekeeper
 status, then uses the app's public key to verify the Sparkle signature over the
 original DMG. CI checks that
 ordinary uninstall preserves fixture data and explicit zap removes only the
