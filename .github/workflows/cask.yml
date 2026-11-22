@@ -26,7 +26,7 @@ jobs:
         with:
           version: 2026.10.25
           working_directory: homebrew-tap
-          install_args: dprint actionlint shellcheck ruff rust
+          install_args: dprint actionlint shellcheck rust
       - name: Fetch locked verifier dependencies
         working-directory: homebrew-tap
         run: mise run cask:fetch-verifier

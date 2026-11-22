@@ -5,25 +5,19 @@ idiomatic_version_file_enable_tools = ["rust"]
 dprint = "0.64.3"
 actionlint = "1.7.12"
 shellcheck = "0.11.0"
-ruff = "0.17.3"
 
 [tasks.check]
 description = "Check owned text, workflows with ShellCheck, and verification helpers"
 run = [
   "dprint check",
   'shellcheck="$(mise which shellcheck)" && actionlint "-shellcheck=$shellcheck" -pyflakes=',
-  "ruff check scripts tests",
-  "ruff format --check scripts tests",
   "cargo fmt --manifest-path tools/release-checker/Cargo.toml -- --check",
   "cargo clippy --locked --offline --manifest-path tools/release-checker/Cargo.toml --all-targets -- -D warnings",
 ]
 
 [tasks."test:helpers"]
-description = "Test release checksum, installed metadata and cleanup with fixtures"
-run = [
-  "mise run cask:python -- -m unittest discover -s tests",
-  "cargo test --locked --offline --manifest-path tools/release-checker/Cargo.toml",
-]
+description = "Test release checksums, Sparkle signature, installed metadata and cleanup with fixtures"
+run = "cargo test --locked --offline --manifest-path tools/release-checker/Cargo.toml"
 
 [tasks."cask:fetch-verifier"]
 description = "Cache the locked Rust release verifier dependencies"
@@ -40,15 +34,9 @@ env.HOMEBREW_NO_AUTO_UPDATE = "1"
 env.HOMEBREW_DEVELOPER = "1"
 run = "brew style ./Casks/kiseki.rb"
 
-[tasks."cask:python"]
-description = "Run a cask verification helper with the pinned Python"
-raw_args = true
-run = "mise exec python@3.15.1 -- python3 -B"
-
 [tasks.format]
-description = "Format owned Markdown, JSON, TOML, YAML, Python, and Rust"
+description = "Format owned Markdown, JSON, TOML, YAML, and Rust"
 run = [
   "dprint fmt",
-  "ruff format scripts tests",
   "cargo fmt --manifest-path tools/release-checker/Cargo.toml",
 ]

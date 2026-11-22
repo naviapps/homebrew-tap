@@ -75,16 +75,14 @@ mise run cask:fetch-verifier
 mise run check
 ```
 
-`check` uses dprint, actionlint with ShellCheck, Ruff for the Python helpers, and
-rustfmt and Clippy for the release verifier. On macOS with Homebrew, check the cask's style:
+`check` uses dprint, actionlint with ShellCheck, rustfmt, and Clippy.
+On macOS with Homebrew, check the cask's style:
 
 ```sh
 mise run lint:cask
 ```
 
 `lint:cask` checks `./Casks/kiseki.rb` using Homebrew's style rules with auto-update disabled.
-The `cask:python` task pins Python separately for the verification helpers that run
-in the hosted macOS job.
 
 ```sh
 mise run test:helpers
