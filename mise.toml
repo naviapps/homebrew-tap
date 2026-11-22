@@ -1,3 +1,6 @@
+[settings]
+idiomatic_version_file_enable_tools = ["rust"]
+
 [tools]
 dprint = "0.64.3"
 actionlint = "1.7.12"
@@ -5,17 +8,31 @@ shellcheck = "0.11.0"
 ruff = "0.17.3"
 
 [tasks.check]
-description = "Check owned text, workflows with ShellCheck, and Python helpers"
+description = "Check owned text, workflows with ShellCheck, and verification helpers"
 run = [
   "dprint check",
   'shellcheck="$(mise which shellcheck)" && actionlint "-shellcheck=$shellcheck" -pyflakes=',
   "ruff check scripts tests",
   "ruff format --check scripts tests",
+  "cargo fmt --manifest-path tools/release-checker/Cargo.toml -- --check",
+  "cargo clippy --locked --offline --manifest-path tools/release-checker/Cargo.toml --all-targets -- -D warnings",
 ]
 
 [tasks."test:helpers"]
 description = "Test release checksum, installed metadata and cleanup with fixtures"
-run = "mise run cask:python -- -m unittest discover -s tests"
+run = [
+  "mise run cask:python -- -m unittest discover -s tests",
+  "cargo test --locked --offline --manifest-path tools/release-checker/Cargo.toml",
+]
+
+[tasks."cask:fetch-verifier"]
+description = "Cache the locked Rust release verifier dependencies"
+run = "cargo fetch --locked --manifest-path tools/release-checker/Cargo.toml"
+
+[tasks."cask:verify"]
+description = "Verify the cask and its exact public release assets"
+raw_args = true
+run = "cargo run --quiet --locked --offline --manifest-path tools/release-checker/Cargo.toml --"
 
 [tasks."lint:cask"]
 description = "Check the local cask with Homebrew style (macOS)"
@@ -29,5 +46,9 @@ raw_args = true
 run = "mise exec python@3.15.1 -- python3 -B"
 
 [tasks.format]
-description = "Format owned Markdown, JSON, TOML, YAML, and Python"
-run = ["dprint fmt", "ruff format scripts tests"]
+description = "Format owned Markdown, JSON, TOML, YAML, Python, and Rust"
+run = [
+  "dprint fmt",
+  "ruff format scripts tests",
+  "cargo fmt --manifest-path tools/release-checker/Cargo.toml",
+]

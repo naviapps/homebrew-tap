@@ -1,0 +1,144 @@
+use std::{
+    io::{Read, Write},
+    path::Path,
+    process::{Command, Stdio},
+};
+
+use crate::release::{Cask, Enclosure, whitespace};
+
+fn curl_command(release: &str, name: &str, maximum: usize) -> Command {
+    let mut command = Command::new("/usr/bin/curl");
+    command
+        .args([
+            "--disable",
+            "--fail",
+            "--silent",
+            "--show-error",
+            "--location",
+            "--max-redirs",
+            "10",
+            "--proto",
+            "=https",
+            "--proto-redir",
+            "=https",
+            "--max-time",
+            "30",
+            "--max-filesize",
+        ])
+        .arg((maximum + 1).to_string())
+        .args(["--", &format!("{release}/{name}")]);
+    command
+}
+
+fn read_download(command: &mut Command, name: &str, maximum: usize) -> Result<Vec<u8>, String> {
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("Could not download published {name}: {error}"))?;
+    let stdout = child.stdout.take().expect("download output is piped");
+    let mut bytes = Vec::new();
+    let read = stdout.take(maximum as u64 + 1).read_to_end(&mut bytes);
+    let oversized = bytes.len() > maximum;
+    if oversized || read.is_err() {
+        let _ = child.kill();
+    }
+    let status = child
+        .wait()
+        .map_err(|error| format!("Could not finish downloading published {name}: {error}"))?;
+    if oversized || status.code() == Some(63) {
+        return Err(format!("Published {name} exceeds the size limit"));
+    }
+    if status.code() == Some(1) {
+        return Err(format!("Published {name} must be transferred over HTTPS"));
+    }
+    read.map_err(|error| format!("Could not read published {name}: {error}"))?;
+    if !status.success() {
+        return Err(format!("Could not download published {name}: {status}"));
+    }
+    Ok(bytes)
+}
+
+pub(crate) fn download(release: &str, name: &str, maximum: usize) -> Result<Vec<u8>, String> {
+    read_download(&mut curl_command(release, name, maximum), name, maximum)
+}
+
+fn plist_string(info: &[u8], key: &str) -> Result<Option<String>, String> {
+    let mut child = Command::new("/usr/bin/plutil")
+        .args([
+            "-extract", key, "raw", "-expect", "string", "-n", "-o", "-", "--", "-",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|error| format!("Could not read signed bundle metadata: {error}"))?;
+    let written = child
+        .stdin
+        .take()
+        .expect("plist input is piped")
+        .write_all(info);
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("Could not read signed bundle metadata: {error}"))?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    written.map_err(|error| format!("Could not read signed bundle metadata: {error}"))?;
+    let text = String::from_utf8(output.stdout)
+        .map_err(|_| "Signed bundle metadata is not UTF-8".to_owned())?;
+    Ok(Some(text))
+}
+
+fn crypto_command(dmg: &Path, digest: &str, key: &str, signature: &str) -> Command {
+    let script =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/verify-sparkle-signature.swift");
+    let mut command = Command::new("/usr/bin/xcrun");
+    command
+        .args(["swift", "-warnings-as-errors"])
+        .arg(script)
+        .arg(dmg)
+        .args([digest, key, signature]);
+    command
+}
+
+fn verify_bundle(bundle: &Path, version: &str, build: &str) -> Result<String, String> {
+    let info = bundle.join("Contents/Info.plist");
+    let bytes = std::fs::read(&info)
+        .map_err(|error| format!("Could not read {}: {error}", info.display()))?;
+    let key = plist_string(&bytes, "SUPublicEDKey")?
+        .filter(|text| !text.trim_matches(whitespace).is_empty())
+        .ok_or("The signed bundle must provide a Sparkle public key in SUPublicEDKey")?;
+    if plist_string(&bytes, "CFBundleShortVersionString")?.as_deref() != Some(version) {
+        return Err(format!(
+            "Signed bundle marketing version must match cask version {version}"
+        ));
+    }
+    if plist_string(&bytes, "CFBundleVersion")?.as_deref() != Some(build) {
+        return Err(format!(
+            "Signed bundle build must match appcast build {build}"
+        ));
+    }
+    Ok(key)
+}
+
+pub(crate) fn verify_signature(
+    dmg: &Path,
+    bundle: &Path,
+    cask: &Cask,
+    enclosure: &Enclosure,
+) -> Result<(), String> {
+    let key = verify_bundle(bundle, &cask.version, &enclosure.build)?;
+    let result = crypto_command(dmg, &cask.digest, &key, &enclosure.signature)
+        .status()
+        .map_err(|error| {
+            format!("Could not start Sparkle update signature verification: {error}")
+        })?;
+    if !result.success() {
+        return Err("Sparkle update signature verification failed".into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests;

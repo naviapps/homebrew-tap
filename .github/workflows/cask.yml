@@ -26,7 +26,10 @@ jobs:
         with:
           version: 2026.10.25
           working_directory: homebrew-tap
-          install_args: dprint actionlint shellcheck ruff
+          install_args: dprint actionlint shellcheck ruff rust
+      - name: Fetch locked verifier dependencies
+        working-directory: homebrew-tap
+        run: mise run cask:fetch-verifier
       - name: Check formatting and workflows
         working-directory: homebrew-tap
         run: mise run check
@@ -46,7 +49,7 @@ jobs:
         working-directory: homebrew-tap
         run: |
           brew info --json=v2 --cask naviapps/tap/kiseki > "${RUNNER_TEMP}/kiseki-cask.json"
-          mise run cask:python scripts/verify-published-checksum.py --verify-appcast
+          mise run cask:verify -- --verify-appcast
       - name: Audit
         run: brew audit --strict --online --cask naviapps/tap/kiseki
       - name: Verify the downloaded disk image
@@ -54,7 +57,7 @@ jobs:
         run: |
           brew fetch --cask naviapps/tap/kiseki
           dmg_path="$(brew --cache --cask naviapps/tap/kiseki)"
-          mise run cask:python scripts/verify-published-checksum.py --verify-appcast --dmg "$dmg_path"
+          mise run cask:verify -- --verify-appcast --dmg "$dmg_path"
           xcrun stapler validate "$dmg_path"
           spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg_path"
       - name: Install and verify
@@ -68,7 +71,7 @@ jobs:
         working-directory: homebrew-tap
         run: |
           dmg_path="$(brew --cache --cask naviapps/tap/kiseki)"
-          mise run cask:python scripts/verify-published-checksum.py --dmg "$dmg_path" \
+          mise run cask:verify -- --dmg "$dmg_path" \
             --sparkle-bundle "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
       - name: Seed cleanup fixtures
         working-directory: homebrew-tap

@@ -70,11 +70,12 @@ Review `mise.toml`, then prepare and run the pinned static checks from this chec
 ```sh
 mise trust mise.toml
 mise install
+mise run cask:fetch-verifier
 mise run check
 ```
 
-`check` uses dprint, actionlint with ShellCheck, and Ruff for the Python helpers.
-It does not need Homebrew or Python. On macOS with Homebrew, check the cask's style:
+`check` uses dprint, actionlint with ShellCheck, Ruff for the Python helpers, and
+rustfmt and Clippy for the release verifier. On macOS with Homebrew, check the cask's style:
 
 ```sh
 mise run lint:cask
@@ -88,8 +89,8 @@ in the hosted macOS job.
 mise run test:helpers
 ```
 
-This tests the release checksum, installed bundle metadata, and cleanup fixtures
-without network access, Homebrew or the current user's Library. CI verifies exact
+After caching the locked dependencies, this tests the release checksum, installed
+bundle metadata, and cleanup fixtures offline in disposable directories. CI verifies exact
 production cleanup paths, refuses existing or symlinked fixture destinations, and
 checks ordinary uninstall and zap separately. On macOS the tests also use the
 selected Swift toolchain to exercise Ed25519 verification with public fixtures.
@@ -110,10 +111,12 @@ installing the cask, save the metadata from the active tap and run the checksum 
 ```sh
 cask_info=$(mktemp)
 HOMEBREW_NO_AUTO_UPDATE=1 brew info --json=v2 --cask naviapps/tap/kiseki > "$cask_info"
-mise run cask:python scripts/verify-published-checksum.py \
+mise run cask:verify -- \
   --cask-info "$cask_info" --dmg /path/to/Kiseki.dmg --verify-appcast
 ```
 
+`cask:verify` runs the pinned Rust verifier. It retrieves the checksums and appcast
+over HTTPS, including redirects, and enforces response size and time limits.
 `--verify-appcast` checks the same tag's Sparkle feed against the release manifest
 and verifies that its update points to the Cask's versioned DMG. With `--dmg`, it
 also compares the downloaded file size with the update enclosure. Omit both
