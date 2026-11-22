@@ -47,7 +47,8 @@ Both commands ask a running Kiseki to quit normally so it can save pending edits
 `--zap` leaves exported preset files, the Keychain license record, macOS permission
 grants and other apps' data alone. It does not deactivate a license or release an
 activation. To clean up after an ordinary uninstall, use the same zap command with
-`--force`.
+`--force`. If Homebrew supports tap trust, run `brew trust --cask naviapps/tap/kiseki`
+first because uninstall removes the cask's individual trust.
 
 If you already installed Kiseki manually, keep using its built-in updater, or quit
 Kiseki and remove only its application bundle before installing through Homebrew.

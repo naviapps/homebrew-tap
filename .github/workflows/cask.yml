@@ -85,6 +85,10 @@ jobs:
       - name: Verify zap removes only app data
         working-directory: homebrew-tap
         run: |
+          # The ordinary uninstall removes this cask's individual trust.
+          if brew command trust >/dev/null 2>&1; then
+            brew trust --cask naviapps/tap/kiseki
+          fi
           brew uninstall --cask --zap --force naviapps/tap/kiseki
           mise run cask:python scripts/cleanup-fixtures.py verify-zap
       - name: Uninstall
