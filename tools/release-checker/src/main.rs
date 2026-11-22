@@ -8,19 +8,22 @@ use std::{
     process::ExitCode,
 };
 
+mod cleanup;
 mod command;
 mod installed;
 mod release;
 
 const USAGE: &str = "Usage: kiseki-cask-release-checker [--cask-info PATH] [--dmg PATH] [--verify-appcast] [--sparkle-bundle PATH]\n\
        kiseki-cask-release-checker --verify-installed\n\
+       kiseki-cask-release-checker --cleanup-fixtures STAGE\n\
 Verify the cask against its exact public release or a disposable installation.\n\n\
   --cask-info PATH       JSON from brew info --json=v2 --cask naviapps/tap/kiseki\n\
                          Defaults to kiseki-cask.json in RUNNER_TEMP\n\
   --dmg PATH             Also verify an already downloaded DMG\n\
   --verify-appcast       Also verify the release's Sparkle appcast metadata\n\
   --sparkle-bundle PATH  Match the appcast to the signed bundle and verify the signature. Requires --dmg.\n\
-  --verify-installed    Check the bundle and cask metadata in RUNNER_TEMP";
+  --verify-installed    Check the bundle and cask metadata in RUNNER_TEMP\n\
+  --cleanup-fixtures    Run seed, verify-uninstall, or verify-zap for a disposable runner";
 
 #[derive(Default)]
 struct Arguments {
@@ -139,6 +142,17 @@ fn finish(result: Result<(), String>) -> ExitCode {
 fn main() -> ExitCode {
     let mut args = env::args_os().skip(1).peekable();
     let runner_temp = env::var_os("RUNNER_TEMP");
+    if args
+        .next_if(|argument| argument == "--cleanup-fixtures")
+        .is_some()
+    {
+        let stage = args.next().as_deref().and_then(cleanup::Stage::parse);
+        let (Some(stage), None) = (stage, args.next()) else {
+            eprintln!("{USAGE}\n--cleanup-fixtures requires one stage");
+            return ExitCode::from(2);
+        };
+        return finish(cleanup::run(stage, runner_temp));
+    }
     if args
         .next_if(|argument| argument == "--verify-installed")
         .is_some()

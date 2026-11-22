@@ -75,13 +75,13 @@ jobs:
             --sparkle-bundle "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
       - name: Seed cleanup fixtures
         working-directory: homebrew-tap
-        run: mise run cask:python scripts/cleanup-fixtures.py seed
+        run: mise run cask:verify -- --cleanup-fixtures seed
       - name: Verify ordinary uninstall preserves data
         working-directory: homebrew-tap
         run: |
           brew uninstall --cask naviapps/tap/kiseki
           test ! -e "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
-          mise run cask:python scripts/cleanup-fixtures.py verify-uninstall
+          mise run cask:verify -- --cleanup-fixtures verify-uninstall
       - name: Verify zap removes only app data
         working-directory: homebrew-tap
         run: |
@@ -90,7 +90,7 @@ jobs:
             brew trust --cask naviapps/tap/kiseki
           fi
           brew uninstall --cask --zap --force naviapps/tap/kiseki
-          mise run cask:python scripts/cleanup-fixtures.py verify-zap
+          mise run cask:verify -- --cleanup-fixtures verify-zap
       - name: Uninstall
         if: always()
         run: |

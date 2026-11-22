@@ -17,6 +17,7 @@ fn help_and_missing_or_malformed_options_use_the_cli_contract() {
         "--verify-appcast",
         "--sparkle-bundle",
         "--verify-installed",
+        "--cleanup-fixtures",
         "RUNNER_TEMP",
     ] {
         assert!(stdout.contains(expected));
@@ -28,6 +29,18 @@ fn help_and_missing_or_malformed_options_use_the_cli_contract() {
         (
             vec!["--verify-installed", "--verify-appcast"],
             "--verify-installed takes no other arguments",
+        ),
+        (
+            vec!["--cleanup-fixtures"],
+            "--cleanup-fixtures requires one stage",
+        ),
+        (
+            vec!["--cleanup-fixtures", "unknown"],
+            "--cleanup-fixtures requires one stage",
+        ),
+        (
+            vec!["--cleanup-fixtures", "seed", "verify-zap"],
+            "--cleanup-fixtures requires one stage",
         ),
     ] {
         let result = verifier().args(arguments).output().unwrap();
@@ -50,6 +63,28 @@ fn installed_mode_requires_the_runner_temp_location() {
             "RUNNER_TEMP must hold the cask metadata and test app directory",
         );
     }
+}
+
+#[test]
+fn cleanup_seed_checks_the_runner_before_writing_to_home_or_temp() {
+    let directory = tempfile::tempdir().unwrap();
+    let home = directory.path().join("home");
+    let runner = directory.path().join("runner");
+    fs::create_dir(&runner).unwrap();
+    let result = verifier()
+        .args(["--cleanup-fixtures", "seed"])
+        .env("HOME", &home)
+        .env("RUNNER_TEMP", &runner)
+        .env("RUNNER_ENVIRONMENT", "self-hosted")
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8(result.stderr).unwrap().trim(),
+        "Requires a disposable runner",
+    );
+    assert!(!home.exists());
+    assert_eq!(runner.read_dir().unwrap().count(), 0);
 }
 
 #[test]

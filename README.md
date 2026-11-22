@@ -140,8 +140,9 @@ the disk image with Gatekeeper. After installing into a temporary app directory,
 configured Sparkle update feed, and both required slices in the executable named
 by the bundle. CI separately verifies the installed app's signature and Gatekeeper
 status, then uses the app's public key to verify the Sparkle signature over the
-original DMG. CI checks that
-ordinary uninstall preserves fixture data and explicit zap removes only the
+original DMG. The Rust checker's `--cleanup-fixtures` mode seeds data for the
+ordinary uninstall and zap steps and verifies the resulting paths and contents.
+Ordinary uninstall preserves fixture data and explicit zap removes only the
 declared app data.
 Cleanup fixtures run only on disposable GitHub-hosted runners; Kiseki is never
 launched. Do not run zap against an existing installation as a packaging test.
