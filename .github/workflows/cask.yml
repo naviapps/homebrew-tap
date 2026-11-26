@@ -13,6 +13,9 @@ jobs:
   kiseki:
     runs-on: macos-26
     timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: homebrew-tap
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
@@ -28,16 +31,12 @@ jobs:
           working_directory: homebrew-tap
           install_args: dprint actionlint shellcheck rust
       - name: Fetch locked verifier dependencies
-        working-directory: homebrew-tap
         run: mise run cask:fetch-verifier
       - name: Check formatting and workflows
-        working-directory: homebrew-tap
         run: mise run check
       - name: Test verification helpers
-        working-directory: homebrew-tap
         run: mise run test:helpers
       - name: Check local cask style
-        working-directory: homebrew-tap
         run: mise run lint:cask
       - name: Tap the proposed checkout
         run: |
@@ -50,7 +49,6 @@ jobs:
       - name: Audit
         run: brew audit --strict --online --cask naviapps/tap/kiseki
       - name: Verify the downloaded disk image
-        working-directory: homebrew-tap
         run: |
           brew fetch --cask naviapps/tap/kiseki
           dmg_path="$(brew --cache --cask naviapps/tap/kiseki)"
@@ -58,29 +56,24 @@ jobs:
           xcrun stapler validate "$dmg_path"
           spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg_path"
       - name: Install and verify
-        working-directory: homebrew-tap
         run: |
           brew install --cask --require-sha --appdir="${RUNNER_TEMP}/kiseki-apps" naviapps/tap/kiseki
           mise run cask:verify -- --verify-installed
           codesign --verify --deep --strict --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
           spctl --assess --type execute --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
       - name: Verify the Sparkle update signature
-        working-directory: homebrew-tap
         run: |
           dmg_path="$(brew --cache --cask naviapps/tap/kiseki)"
           mise run cask:verify -- --dmg "$dmg_path" \
             --sparkle-bundle "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
       - name: Seed cleanup fixtures
-        working-directory: homebrew-tap
         run: mise run cask:verify -- --cleanup-fixtures seed
       - name: Verify ordinary uninstall preserves data
-        working-directory: homebrew-tap
         run: |
           brew uninstall --cask naviapps/tap/kiseki
           test ! -e "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
           mise run cask:verify -- --cleanup-fixtures verify-uninstall
       - name: Verify zap removes only app data
-        working-directory: homebrew-tap
         run: |
           # The ordinary uninstall removes this cask's individual trust.
           if brew command trust >/dev/null 2>&1; then

@@ -6,27 +6,30 @@ dprint = "0.65.0"
 actionlint = "1.7.12"
 shellcheck = "0.11.0"
 
+[vars]
+release_checker_manifest = "tools/release-checker/Cargo.toml"
+
 [tasks.check]
 description = "Check owned text, workflows with ShellCheck, and verification helpers"
 run = [
   "dprint check",
   'shellcheck="$(mise which shellcheck)" && actionlint "-shellcheck=$shellcheck" -pyflakes=',
-  "cargo fmt --manifest-path tools/release-checker/Cargo.toml -- --check",
-  "cargo clippy --locked --offline --manifest-path tools/release-checker/Cargo.toml --all-targets -- -D warnings",
+  "cargo fmt --manifest-path {{ vars.release_checker_manifest }} -- --check",
+  "cargo clippy --locked --offline --manifest-path {{ vars.release_checker_manifest }} --all-targets -- -D warnings",
 ]
 
 [tasks."test:helpers"]
 description = "Test release checksums, Sparkle signature, installed metadata and cleanup with fixtures"
-run = "cargo test --locked --offline --manifest-path tools/release-checker/Cargo.toml"
+run = "cargo test --locked --offline --manifest-path {{ vars.release_checker_manifest }}"
 
 [tasks."cask:fetch-verifier"]
 description = "Cache the locked Rust release verifier dependencies"
-run = "cargo fetch --locked --manifest-path tools/release-checker/Cargo.toml"
+run = "cargo fetch --locked --manifest-path {{ vars.release_checker_manifest }}"
 
 [tasks."cask:verify"]
 description = "Verify the cask and its exact public release assets"
 raw_args = true
-run = "cargo run --quiet --locked --offline --manifest-path tools/release-checker/Cargo.toml --"
+run = "cargo run --quiet --locked --offline --manifest-path {{ vars.release_checker_manifest }} --"
 
 [tasks."lint:cask"]
 description = "Check the local cask with Homebrew style (macOS)"
@@ -38,5 +41,5 @@ run = "brew style ./Casks/kiseki.rb"
 description = "Format owned Markdown, JSON, TOML, YAML, and Rust"
 run = [
   "dprint fmt",
-  "cargo fmt --manifest-path tools/release-checker/Cargo.toml",
+  "cargo fmt --manifest-path {{ vars.release_checker_manifest }}",
 ]
