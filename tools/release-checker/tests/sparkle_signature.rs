@@ -1,17 +1,18 @@
 #![cfg(target_os = "macos")]
 
-use sha2::{Digest, Sha256};
-use std::{fmt::Write, fs, path::Path, process::Command};
+use std::{fs, path::Path, process::Command};
 
 // RFC 8032 `7.1 test 2. The complete vector is verified by the release pipeline test.
 const PUBLIC_KEY: &str = "PUAXw+hDiVqStwqnTRt+vJyYLM8uxJaMwM1V8Sr0Zgw=";
 const SIGNATURE: &str =
     "kqAJqfDUyrhyDoILX2QlQKKye1QWUD+Ps3YiI+vbadoIWsHkPhWZbkWPNhPQ8R2MOHsurrQwKu6wDSkWErsMAA==";
+const ORIGINAL_DIGEST: &str = "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1";
+const CHANGED_DIGEST: &str = "043a718774c572bd8a25adbeb1bfcd5c0256ae11cecf9f9c3f925d0e52beaf89";
 
 #[derive(Clone, Copy)]
 struct Input {
     image: &'static [u8],
-    published_digest: Option<&'static str>,
+    published_digest: &'static str,
     key: &'static str,
     signature: &'static str,
 }
@@ -40,7 +41,7 @@ fn swift_verifier_rejects_invalid_digests_images_and_credentials() {
 
     let original = Input {
         image: b"r",
-        published_digest: None,
+        published_digest: ORIGINAL_DIGEST,
         key: PUBLIC_KEY,
         signature: SIGNATURE,
     };
@@ -48,9 +49,7 @@ fn swift_verifier_rejects_invalid_digests_images_and_credentials() {
         (
             "wrong published digest",
             Input {
-                published_digest: Some(
-                    "0000000000000000000000000000000000000000000000000000000000000000",
-                ),
+                published_digest: "0000000000000000000000000000000000000000000000000000000000000000",
                 ..original
             },
             "published SHA-256 digest",
@@ -59,6 +58,7 @@ fn swift_verifier_rejects_invalid_digests_images_and_credentials() {
             "changed image with its own digest",
             Input {
                 image: b"s",
+                published_digest: CHANGED_DIGEST,
                 ..original
             },
             "Sparkle signature does not match",
@@ -91,19 +91,11 @@ fn swift_verifier_rejects_invalid_digests_images_and_credentials() {
     let dmg = root.path().join("Kiseki 日本語.dmg");
     for (name, input, diagnostic) in cases {
         fs::write(&dmg, input.image).unwrap();
-        let mut actual_digest = String::with_capacity(64);
-        for byte in Sha256::digest(input.image) {
-            write!(actual_digest, "{byte:02x}").unwrap();
-        }
         let output = Command::new(&verifier)
             .env("HOME", root.path())
             .env("TMPDIR", root.path())
             .arg(&dmg)
-            .args([
-                input.published_digest.unwrap_or(&actual_digest),
-                input.key,
-                input.signature,
-            ])
+            .args([input.published_digest, input.key, input.signature])
             .output()
             .unwrap();
         let stderr = String::from_utf8_lossy(&output.stderr);
