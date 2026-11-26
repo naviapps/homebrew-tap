@@ -7,7 +7,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use crate::read_cask;
+use crate::{CASK_INFO_FILE, read_cask};
 
 const FIXTURE_CONTENTS: &[u8] = b"Homebrew cleanup fixture\n";
 const PRODUCTION_PATHS: [&str; 6] = [
@@ -177,7 +177,7 @@ fn execute(
     if stage == Stage::Seed && runner_environment != Some(OsStr::new("github-hosted")) {
         return Err("Requires a disposable runner".into());
     }
-    let cask = read_cask(&root.join("kiseki-cask.json"))?;
+    let cask = read_cask(&root.join(CASK_INFO_FILE))?;
     let paths = FixturePaths::from_cask(&cask, home, root)?;
     match stage {
         Stage::Seed => seed(&paths),

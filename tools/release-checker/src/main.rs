@@ -13,6 +13,8 @@ mod command;
 mod installed;
 mod release;
 
+const CASK_INFO_FILE: &str = "kiseki-cask.json";
+
 const USAGE: &str = "Usage: kiseki-cask-release-checker [--cask-info PATH] [--dmg PATH] [--verify-appcast] [--sparkle-bundle PATH]\n\
        kiseki-cask-release-checker --verify-installed\n\
        kiseki-cask-release-checker --cleanup-fixtures STAGE\n\
@@ -81,7 +83,7 @@ fn parse_arguments(
         .or_else(|| {
             runner_temp
                 .filter(|path| !path.is_empty())
-                .map(|path| PathBuf::from(path).join("kiseki-cask.json"))
+                .map(|path| PathBuf::from(path).join(CASK_INFO_FILE))
         })
         .ok_or("pass --cask-info or set RUNNER_TEMP")?;
     Ok(Some(arguments))

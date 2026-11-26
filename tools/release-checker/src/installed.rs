@@ -1,7 +1,7 @@
 use std::{borrow::Cow, ffi::OsString, fs, path::Path};
 
 use crate::{
-    command, read_cask,
+    CASK_INFO_FILE, command, read_cask,
     release::{MAXIMUM_DECIMAL_DIGITS, cask_entry, decimal, whitespace},
 };
 
@@ -74,7 +74,7 @@ fn verify(
     root: &Path,
     inspect_binary: impl FnOnce(&Path) -> Result<String, String>,
 ) -> Result<String, String> {
-    let info = read_cask(&root.join("kiseki-cask.json"))?;
+    let info = read_cask(&root.join(CASK_INFO_FILE))?;
     let cask = cask_entry(&info)?;
     let version = cask["version"]
         .as_str()
