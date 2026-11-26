@@ -108,10 +108,14 @@ To verify the versioned release manifest and an already downloaded DMG without
 installing the cask, save the metadata from the active tap and run the checksum helper:
 
 ```sh
-cask_info=$(mktemp)
-HOMEBREW_NO_AUTO_UPDATE=1 brew info --json=v2 --cask naviapps/tap/kiseki > "$cask_info"
-mise run cask:verify -- \
-  --cask-info "$cask_info" --dmg /path/to/Kiseki.dmg --verify-appcast
+(
+  set -e
+  cask_info=$(mktemp)
+  trap 'rm -f -- "$cask_info"' EXIT
+  HOMEBREW_NO_AUTO_UPDATE=1 brew info --json=v2 --cask naviapps/tap/kiseki > "$cask_info"
+  mise run cask:verify -- \
+    --cask-info "$cask_info" --dmg /path/to/Kiseki.dmg --verify-appcast
+)
 ```
 
 `cask:verify` runs the pinned Rust verifier. It retrieves the checksums and appcast
