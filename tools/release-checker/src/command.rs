@@ -120,7 +120,7 @@ pub(crate) fn architectures(binary: &Path) -> Result<String, String> {
         .map_err(|_| "Installed executable architectures are not UTF-8".to_owned())
 }
 
-fn crypto_command(dmg: &Path, digest: &str, key: &str, signature: &str) -> Command {
+fn crypto_command(dmg: &Path, digest: &str, key: &str, enclosure: &Enclosure) -> Command {
     let script =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/verify-sparkle-signature.swift");
     let mut command = Command::new("/usr/bin/xcrun");
@@ -128,7 +128,7 @@ fn crypto_command(dmg: &Path, digest: &str, key: &str, signature: &str) -> Comma
         .args(["swift", "-warnings-as-errors"])
         .arg(script)
         .arg(dmg)
-        .args([digest, key, signature]);
+        .args([digest, key, &enclosure.signature, &enclosure.length]);
     command
 }
 
@@ -152,14 +152,15 @@ fn verify_bundle(bundle: &Path, version: &str, build: &str) -> Result<String, St
     Ok(key)
 }
 
-pub(crate) fn verify_signature(
+pub(crate) fn verify_signed_image(
     dmg: &Path,
     bundle: &Path,
     cask: &Cask,
     enclosure: &Enclosure,
 ) -> Result<(), String> {
     let key = verify_bundle(bundle, &cask.version, &enclosure.build)?;
-    let result = crypto_command(dmg, &cask.digest, &key, &enclosure.signature)
+    // Check the digest, length and signature against the same bytes in CryptoKit.
+    let result = crypto_command(dmg, &cask.digest, &key, enclosure)
         .status()
         .map_err(|error| {
             format!("Could not start Sparkle update signature verification: {error}")

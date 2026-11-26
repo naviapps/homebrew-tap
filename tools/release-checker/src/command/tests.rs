@@ -57,7 +57,12 @@ fn read_requires_complete_successful_response_within_the_byte_limit() {
 #[test]
 fn crypto_receives_the_original_script_and_exact_metadata() {
     let dmg = Path::new("/tmp/Kiseki 日本語.dmg");
-    let command = crypto_command(dmg, "sha", " key ", "signature");
+    let enclosure = Enclosure {
+        length: "123".into(),
+        signature: "signature".into(),
+        build: "42".into(),
+    };
+    let command = crypto_command(dmg, "sha", " key ", &enclosure);
     assert_eq!(command.get_program(), "/usr/bin/xcrun");
     let args: Vec<_> = command.get_args().collect();
     assert_eq!(&args[..2], &["swift", "-warnings-as-errors"]);
@@ -68,7 +73,8 @@ fn crypto_receives_the_original_script_and_exact_metadata() {
             dmg.as_os_str(),
             "sha".as_ref(),
             " key ".as_ref(),
-            "signature".as_ref()
+            "signature".as_ref(),
+            "123".as_ref(),
         ]
     );
 }

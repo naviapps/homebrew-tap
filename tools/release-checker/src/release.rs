@@ -244,7 +244,7 @@ fn disk_image(dmg: &Path) -> io::Result<(String, u64)> {
 pub(crate) fn verify(
     request: Request<'_>,
     mut download: impl FnMut(&str, &str, usize) -> Result<Vec<u8>, String>,
-    verify_signature: impl FnOnce(&Path, &Path, &Cask, &Enclosure) -> Result<(), String>,
+    verify_signed_image: impl FnOnce(&Path, &Path, &Cask, &Enclosure) -> Result<(), String>,
 ) -> Result<Cask, String> {
     if request.bundle.is_some() && request.dmg.is_none() {
         return Err("Sparkle signature verification requires a local DMG".into());
@@ -264,19 +264,18 @@ pub(crate) fn verify(
         }
         enclosure = Some(appcast_enclosure(&contents, &cask)?);
     }
-    if let Some(dmg) = request.dmg {
+    if let (Some(dmg), Some(bundle), Some(enclosure)) =
+        (request.dmg, request.bundle, enclosure.as_ref())
+    {
+        verify_signed_image(dmg, bundle, &cask, enclosure)?;
+    } else if let Some(dmg) = request.dmg {
         let (actual, size) = disk_image(dmg)
             .map_err(|error| format!("Could not read {}: {error}", dmg.display()))?;
         if actual != cask.digest {
             return Err("Local DMG checksum differs from published SHA256SUMS".into());
         }
-        if let Some(enclosure) = &enclosure {
-            if size.to_string() != enclosure.length {
-                return Err("Local DMG length differs from the published appcast enclosure".into());
-            }
-            if let Some(bundle) = request.bundle {
-                verify_signature(dmg, bundle, &cask, enclosure)?;
-            }
+        if enclosure.is_some_and(|enclosure| size.to_string() != enclosure.length) {
+            return Err("Local DMG length differs from the published appcast enclosure".into());
         }
     }
     Ok(cask)

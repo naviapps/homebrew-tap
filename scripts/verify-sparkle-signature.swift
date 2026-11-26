@@ -7,8 +7,8 @@ func fail(_ reason: String) -> Never {
 }
 
 let arguments = CommandLine.arguments
-guard arguments.count == 5 else {
-  fail("Expected a DMG path, SHA-256 digest, Sparkle public key and signature.")
+guard arguments.count == 5 || arguments.count == 6 else {
+  fail("Expected a DMG path, SHA-256 digest, Sparkle public key, signature and optional length.")
 }
 let whitespace = CharacterSet.whitespacesAndNewlines
 guard let keyBytes = Data(base64Encoded: arguments[3].trimmingCharacters(in: whitespace)),
@@ -27,6 +27,9 @@ guard let diskImage = try? Data(contentsOf: URL(fileURLWithPath: arguments[1])) 
 let digest = SHA256.hash(data: diskImage).map { String(format: "%02x", $0) }.joined()
 guard digest == arguments[2] else {
   fail("The DMG bytes do not match the published SHA-256 digest.")
+}
+if arguments.count == 6, String(diskImage.count) != arguments[5] {
+  fail("Local DMG length differs from the published appcast enclosure.")
 }
 guard key.isValidSignature(signature, for: diskImage) else {
   fail("The Sparkle signature does not match the DMG and bundle public key.")

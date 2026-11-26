@@ -418,7 +418,7 @@ fn verified_bundle_drives_the_existing_swift_signature_verifier() {
                 manifest.as_bytes().to_vec(),
                 xml.as_bytes().to_vec(),
             ),
-            crate::command::verify_signature,
+            crate::command::verify_signed_image,
         );
         if candidate == key {
             assert!(result.is_ok());

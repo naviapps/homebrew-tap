@@ -106,7 +106,7 @@ fn run(arguments: Arguments) -> Result<(), String> {
             bundle: arguments.bundle.as_deref(),
         },
         command::download,
-        command::verify_signature,
+        command::verify_signed_image,
     )?;
     let artifact = if arguments.dmg.is_some() {
         " and local DMG"

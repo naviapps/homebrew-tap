@@ -44,12 +44,14 @@ jobs:
       - name: Audit
         run: brew audit --strict --online --cask naviapps/tap/kiseki
       - name: Verify the downloaded disk image
+        id: dmg
         run: |
           brew fetch --cask naviapps/tap/kiseki
           dmg_path="$(brew --cache --cask naviapps/tap/kiseki)"
           mise run cask:verify -- --verify-appcast --dmg "$dmg_path"
           xcrun stapler validate "$dmg_path"
           spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg_path"
+          printf 'path=%s\n' "$dmg_path" >> "$GITHUB_OUTPUT"
       - name: Install and verify
         run: |
           brew install --cask --require-sha --appdir="${RUNNER_TEMP}/kiseki-apps" naviapps/tap/kiseki
@@ -57,9 +59,10 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
           spctl --assess --type execute --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
       - name: Verify the Sparkle update signature
+        env:
+          DMG_PATH: ${{ steps.dmg.outputs.path }}
         run: |
-          dmg_path="$(brew --cache --cask naviapps/tap/kiseki)"
-          mise run cask:verify -- --dmg "$dmg_path" \
+          mise run cask:verify -- --dmg "$DMG_PATH" \
             --sparkle-bundle "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
       - name: Seed cleanup fixtures
         run: mise run cask:verify -- --cleanup-fixtures seed

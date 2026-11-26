@@ -15,6 +15,7 @@ struct Input {
     published_digest: &'static str,
     key: &'static str,
     signature: &'static str,
+    length: Option<&'static str>,
 }
 
 #[test]
@@ -44,6 +45,7 @@ fn swift_verifier_rejects_invalid_digests_images_and_credentials() {
         published_digest: ORIGINAL_DIGEST,
         key: PUBLIC_KEY,
         signature: SIGNATURE,
+        length: None,
     };
     let cases = [
         (
@@ -53,6 +55,14 @@ fn swift_verifier_rejects_invalid_digests_images_and_credentials() {
                 ..original
             },
             "published SHA-256 digest",
+        ),
+        (
+            "wrong enclosure length",
+            Input {
+                length: Some("2"),
+                ..original
+            },
+            "published appcast enclosure",
         ),
         (
             "changed image with its own digest",
@@ -96,6 +106,7 @@ fn swift_verifier_rejects_invalid_digests_images_and_credentials() {
             .env("TMPDIR", root.path())
             .arg(&dmg)
             .args([input.published_digest, input.key, input.signature])
+            .args(input.length)
             .output()
             .unwrap();
         let stderr = String::from_utf8_lossy(&output.stderr);
