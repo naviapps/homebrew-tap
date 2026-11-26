@@ -1,11 +1,5 @@
 {
   "lineWidth": 100,
-  "indentWidth": 2,
-  "useTabs": false,
-  "newLineKind": "lf",
-  "markdown": {
-    "textWrap": "maintain"
-  },
   "includes": [
     "**/*.{md,json,jsonc,toml,yaml,yml}"
   ],
