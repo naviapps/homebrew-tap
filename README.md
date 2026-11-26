@@ -109,10 +109,9 @@ installing the cask, save the metadata from the active tap and run the checksum 
 
 ```sh
 (
-  set -e
-  cask_info=$(mktemp)
-  trap 'rm -f -- "$cask_info"' EXIT
-  HOMEBREW_NO_AUTO_UPDATE=1 brew info --json=v2 --cask naviapps/tap/kiseki > "$cask_info"
+  cask_info=$(mktemp) || exit
+  trap 'rm -f -- "$cask_info"' EXIT || exit
+  HOMEBREW_NO_AUTO_UPDATE=1 brew info --json=v2 --cask naviapps/tap/kiseki > "$cask_info" || exit
   mise run cask:verify -- \
     --cask-info "$cask_info" --dmg /path/to/Kiseki.dmg --verify-appcast
 )
