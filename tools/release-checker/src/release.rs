@@ -231,13 +231,14 @@ fn disk_image(dmg: &Path) -> io::Result<(String, u64)> {
     let mut file = File::open(dmg)?;
     let mut hasher = Sha256::new();
     let mut buffer = [0; 64 * 1024];
+    let mut size = 0;
     loop {
         let count = file.read(&mut buffer)?;
         if count == 0 {
-            let size = file.metadata()?.len();
             return Ok((hex_digest(&hasher.finalize()), size));
         }
         hasher.update(&buffer[..count]);
+        size += count as u64;
     }
 }
 
