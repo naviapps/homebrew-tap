@@ -43,11 +43,10 @@ pub(crate) fn decimal(text: &str) -> bool {
 }
 
 fn version_number(text: &str) -> bool {
-    let parts = text.split('.').collect::<Vec<_>>();
-    parts.len() == 3
-        && parts
-            .iter()
-            .all(|part| *part == "0" || positive_decimal(part))
+    text.splitn(3, '.')
+        .filter(|part| *part == "0" || positive_decimal(part))
+        .count()
+        == 3
 }
 
 fn positive_decimal(text: &str) -> bool {
@@ -55,12 +54,9 @@ fn positive_decimal(text: &str) -> bool {
 }
 
 pub(crate) fn cask_entry(info: &Value) -> Result<&Value, String> {
-    let Some([entry]) = info["casks"].as_array().map(Vec::as_slice) else {
+    let Some([entry @ Value::Object(_)]) = info["casks"].as_array().map(Vec::as_slice) else {
         return Err("Expected one Homebrew cask in brew info JSON".into());
     };
-    if !entry.is_object() {
-        return Err("Expected one Homebrew cask in brew info JSON".into());
-    }
     if entry["full_token"].as_str() != Some("naviapps/tap/kiseki") {
         return Err("Expected the naviapps/tap/kiseki cask".into());
     }

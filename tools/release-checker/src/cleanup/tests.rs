@@ -127,27 +127,21 @@ fn exact_reviewed_locations_are_required_before_seeding() {
     let fixture = Fixture::new();
     let paths = fixture.paths();
     let mut many = fixture.trash.clone();
-    many.push(fixture.trash[0].clone());
+    let first_path = &fixture.trash[0];
+    many.push(first_path.clone());
+    let with_first_path = |path| {
+        let mut trash = fixture.trash.clone();
+        trash[0] = path;
+        trash
+    };
     for trash in [
         vec![],
         fixture.trash[..fixture.trash.len() - 1].to_vec(),
         many,
-        [vec![fixture.trash[1].clone()], fixture.trash[1..].to_vec()].concat(),
-        [
-            vec![fixture.trash[0].replace("Application Support", "Unrelated")],
-            fixture.trash[1..].to_vec(),
-        ]
-        .concat(),
-        [
-            vec![fixture.trash[0].replace("Application Support", "*")],
-            fixture.trash[1..].to_vec(),
-        ]
-        .concat(),
-        [
-            vec![fixture.trash[0].replace("Library/", "Library/../Library/")],
-            fixture.trash[1..].to_vec(),
-        ]
-        .concat(),
+        with_first_path(fixture.trash[1].clone()),
+        with_first_path(first_path.replace("Application Support", "Unrelated")),
+        with_first_path(first_path.replace("Application Support", "*")),
+        with_first_path(first_path.replace("Library/", "Library/../Library/")),
     ] {
         fixture.write_trash(&trash);
         let error = fixture.run(Stage::Seed, Some("github-hosted")).unwrap_err();
