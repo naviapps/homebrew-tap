@@ -248,6 +248,10 @@ fn uninstall_requires_every_fixture_and_preserves_legacy_line_endings() {
             .run(Stage::VerifyUninstall, Some("self-hosted"))
             .unwrap();
     }
+    fs::write(&retained, b"Homebrew cleanup fixture\r\nx").unwrap();
+    let error = fixture.run(Stage::VerifyUninstall, None).unwrap_err();
+    assert!(error.contains("Uninstall changed"), "{error}");
+    fs::write(&retained, FIXTURE_CONTENTS).unwrap();
     fs::remove_file(fixture_file(&paths.remove[0])).unwrap();
     let error = fixture.run(Stage::VerifyUninstall, None).unwrap_err();
     assert!(error.contains("Uninstall changed"), "{error}");

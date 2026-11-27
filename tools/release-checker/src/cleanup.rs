@@ -3,7 +3,7 @@ use std::{
     env,
     ffi::{OsStr, OsString},
     fs::{self, File},
-    io::{self, Write},
+    io::{self, Read, Write},
     path::{Component, Path, PathBuf},
 };
 
@@ -99,44 +99,57 @@ fn fixture_file(path: &Path) -> PathBuf {
     }
 }
 
-fn checked_path(path: &Path) -> io::Result<bool> {
+enum CheckedPath {
+    Unsafe,
+    Safe(Option<fs::Metadata>),
+}
+
+fn path_metadata(path: &Path) -> io::Result<Option<fs::Metadata>> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => Ok(Some(metadata)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+fn checked_path(path: &Path) -> io::Result<CheckedPath> {
     if !path.is_absolute() {
-        return Ok(false);
+        return Ok(CheckedPath::Unsafe);
     }
     let mut ancestor = PathBuf::new();
+    let mut metadata = None;
     for component in path.components() {
         if !matches!(component, Component::RootDir | Component::Normal(_)) {
-            return Ok(false);
+            return Ok(CheckedPath::Unsafe);
         }
         ancestor.push(component);
-        match fs::symlink_metadata(&ancestor) {
-            Ok(metadata) if metadata.is_symlink() => return Ok(false),
-            Ok(_) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
+        metadata = path_metadata(&ancestor)?;
+        if metadata.as_ref().is_some_and(fs::Metadata::is_symlink) {
+            return Ok(CheckedPath::Unsafe);
         }
     }
-    Ok(true)
+    Ok(CheckedPath::Safe(metadata))
 }
 
 fn present(path: &Path) -> Result<bool, String> {
-    match fs::symlink_metadata(path) {
-        Ok(_) => Ok(true),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(format!("Could not inspect {}: {error}", path.display())),
-    }
+    path_metadata(path)
+        .map(|metadata| metadata.is_some())
+        .map_err(|error| format!("Could not inspect {}: {error}", path.display()))
 }
 
 fn seed(paths: &FixturePaths) -> Result<(), String> {
     // Check every root before creating any fixture.
     for path in paths.all() {
-        if !checked_path(path)
+        match checked_path(path)
             .map_err(|error| format!("Could not inspect {}: {error}", path.display()))?
         {
-            return Err(format!("Unexpected cask cleanup path: {}", path.display()));
-        }
-        if present(path)? {
-            return Err(format!("Refusing to overwrite {}", path.display()));
+            CheckedPath::Unsafe => {
+                return Err(format!("Unexpected cask cleanup path: {}", path.display()));
+            }
+            CheckedPath::Safe(Some(_)) => {
+                return Err(format!("Refusing to overwrite {}", path.display()));
+            }
+            CheckedPath::Safe(None) => {}
         }
     }
     for path in paths.all().map(fixture_file) {
@@ -151,13 +164,20 @@ fn seed(paths: &FixturePaths) -> Result<(), String> {
 
 fn verify_preserved(paths: impl Iterator<Item = PathBuf>, action: &str) -> Result<(), String> {
     let body = &FIXTURE_CONTENTS[..FIXTURE_CONTENTS.len() - 1];
+    // Read one byte beyond the longest supported marker to detect trailing data.
+    let limit = body.len() + 3;
+    let mut bytes = Vec::with_capacity(limit);
     for path in paths {
-        // The old text reader accepted the three conventional line endings.
-        if !checked_path(&path).unwrap_or(false)
-            || !path.is_file()
-            || !fs::read(&path).is_ok_and(|bytes| {
-                matches!(bytes.strip_prefix(body), Some(b"\n" | b"\r\n" | b"\r"))
-            })
+        bytes.clear();
+        let ordinary_file = matches!(
+            checked_path(&path),
+            Ok(CheckedPath::Safe(Some(metadata))) if metadata.is_file()
+        );
+        if !ordinary_file
+            || File::open(&path)
+                .and_then(|file| file.take(limit as u64).read_to_end(&mut bytes))
+                .is_err()
+            || !matches!(bytes.strip_prefix(body), Some(b"\n" | b"\r\n" | b"\r"))
         {
             return Err(format!("{action} changed {}", path.display()));
         }
