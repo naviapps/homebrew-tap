@@ -80,18 +80,18 @@ mise run test:helpers
 `test:helpers` tests release checksums, installed bundle metadata, and cleanup
 fixtures offline in disposable directories. On macOS it also uses the selected
 Swift toolchain to test Ed25519 verification with public fixtures.
-On macOS with Homebrew, `mise run lint:cask` checks `Casks/kiseki.rb` using
-Homebrew's style rules with auto-update disabled.
 
 Run the release checks against the modified checkout at `brew --repository naviapps/tap`.
-CI taps the proposed checkout. The online audit caches the DMG. The verifier
-checks that image against the published release without installing it.
+CI taps the proposed checkout. The dedicated style check runs before the online
+audit, which caches the DMG. The verifier checks that image against the published
+release without installing it.
 
 ```sh
 (
   export HOMEBREW_NO_AUTO_UPDATE=1
   cask=naviapps/tap/kiseki
-  brew audit --strict --online --cask "$cask" || exit
+  mise run lint:cask || exit
+  brew audit --strict --online --skip-style --cask "$cask" || exit
   dmg=$(brew --cache --cask "$cask") || exit
   cask_info=$(brew info --json=v2 --cask "$cask") || exit
   printf '%s\n' "$cask_info" |
