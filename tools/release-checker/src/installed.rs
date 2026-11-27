@@ -1,7 +1,7 @@
-use std::{borrow::Cow, fs, path::Path};
+use std::{borrow::Cow, path::Path};
 
 use crate::{
-    CASK_INFO_FILE, command, read_cask,
+    CASK_INFO_FILE, command, read_cask, read_file,
     release::{MAXIMUM_DECIMAL_DIGITS, cask_entry, decimal, whitespace},
 };
 
@@ -88,9 +88,7 @@ fn verify(
     };
 
     let contents = root.join(APPLICATION);
-    let plist = contents.join("Info.plist");
-    let bytes =
-        fs::read(&plist).map_err(|error| format!("Could not read {}: {error}", plist.display()))?;
+    let bytes = read_file(&contents.join("Info.plist"))?;
     if !recognized_plist(&bytes) {
         return Err(INVALID_PLIST.into());
     }

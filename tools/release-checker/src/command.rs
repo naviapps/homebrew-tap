@@ -133,9 +133,7 @@ fn crypto_command(dmg: &Path, digest: &str, key: &str, enclosure: &Enclosure) ->
 }
 
 fn verify_bundle(bundle: &Path, version: &str, build: &str) -> Result<String, String> {
-    let info = bundle.join("Contents/Info.plist");
-    let bytes = std::fs::read(&info)
-        .map_err(|error| format!("Could not read {}: {error}", info.display()))?;
+    let bytes = crate::read_file(&bundle.join("Contents/Info.plist"))?;
     let key = plist_string(&bytes, "SUPublicEDKey")?
         .filter(|text| !text.trim_matches(whitespace).is_empty())
         .ok_or("The signed bundle must provide a Sparkle public key in SUPublicEDKey")?;

@@ -85,10 +85,12 @@ fn parse_arguments(
     Ok(Some(arguments))
 }
 
+fn read_file(path: &Path) -> Result<Vec<u8>, String> {
+    fs::read(path).map_err(|error| format!("Could not read {}: {error}", path.display()))
+}
+
 fn read_cask(path: &Path) -> Result<serde_json::Value, String> {
-    let contents =
-        fs::read(path).map_err(|error| format!("Could not read {}: {error}", path.display()))?;
-    serde_json::from_slice(&contents)
+    serde_json::from_slice(&read_file(path)?)
         .map_err(|error| format!("Could not parse Homebrew cask JSON: {error}"))
 }
 
