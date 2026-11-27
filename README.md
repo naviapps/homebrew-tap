@@ -83,28 +83,26 @@ Swift toolchain to test Ed25519 verification with public fixtures.
 On macOS with Homebrew, `mise run lint:cask` checks `Casks/kiseki.rb` using
 Homebrew's style rules with auto-update disabled.
 
-Release validation additionally uses:
-
-```sh
-brew audit --strict --online --cask naviapps/tap/kiseki
-brew fetch --cask naviapps/tap/kiseki
-brew --cache --cask naviapps/tap/kiseki
-```
-
-Run these commands against the modified checkout at `brew --repository naviapps/tap`;
-Homebrew does not audit a separate clone by file path. CI taps the proposed checkout.
-To verify the versioned release manifest and an already downloaded DMG without
-installing the cask, save the metadata from the active tap and run the checksum helper:
+Run the release checks against the modified checkout at `brew --repository naviapps/tap`.
+CI taps the proposed checkout. This audits the cask and verifies its cached DMG
+against the published release without installing it.
 
 ```sh
 (
+  export HOMEBREW_NO_AUTO_UPDATE=1
+  cask=naviapps/tap/kiseki
+  brew audit --strict --online --cask "$cask" || exit
+  brew fetch --cask "$cask" || exit
+  dmg=$(brew --cache --cask "$cask") || exit
   cask_info=$(mktemp) || exit
   trap 'rm -f -- "$cask_info"' EXIT || exit
-  HOMEBREW_NO_AUTO_UPDATE=1 brew info --json=v2 --cask naviapps/tap/kiseki > "$cask_info" || exit
-  mise run cask:verify -- \
-    --cask-info "$cask_info" --dmg /path/to/Kiseki.dmg --verify-appcast
+  brew info --json=v2 --cask "$cask" > "$cask_info" || exit
+  mise run cask:verify -- --cask-info "$cask_info" --dmg "$dmg" --verify-appcast
 )
 ```
+
+For a DMG you already downloaded, replace the fetch and cache lines with
+`dmg=/path/to/Kiseki.dmg`.
 
 `cask:verify` runs the pinned Rust verifier. It retrieves the checksums and appcast
 over HTTPS, including redirects, and enforces response size and time limits.
