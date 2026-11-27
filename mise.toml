@@ -23,8 +23,8 @@ description = "Test release checksums, Sparkle signature, installed metadata and
 run = "cargo test --locked --offline --manifest-path {{ vars.release_checker_manifest }}"
 
 [tasks."cask:fetch-verifier"]
-description = "Cache the locked Rust release verifier dependencies"
-run = "cargo fetch --locked --manifest-path {{ vars.release_checker_manifest }}"
+description = "Cache the locked Rust release verifier dependencies for the host"
+run = "cargo fetch --locked --target host-tuple --manifest-path {{ vars.release_checker_manifest }}"
 
 [tasks."cask:verify"]
 description = "Verify the cask and its exact public release assets"
