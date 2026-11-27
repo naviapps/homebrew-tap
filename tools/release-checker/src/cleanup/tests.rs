@@ -1,6 +1,10 @@
 use super::*;
 use serde_json::json;
 
+fn cask_info(artifacts: Value) -> Value {
+    json!({"casks": [{"full_token": "naviapps/tap/kiseki", "artifacts": artifacts}]})
+}
+
 struct Fixture {
     _directory: tempfile::TempDir,
     home: PathBuf,
@@ -36,7 +40,7 @@ impl Fixture {
     }
 
     fn write_trash(&self, trash: &[String]) {
-        self.write_info(json!({"casks": [{"artifacts": [{"zap": [{"trash": trash}]}]}]}));
+        self.write_info(cask_info(json!([{"zap": [{"trash": trash}]}])));
     }
 
     fn paths(&self) -> FixturePaths {
@@ -78,17 +82,20 @@ fn seed_checks_the_disposable_runner_before_creating_files() {
 fn cleanup_paths_require_one_cask_and_one_explicit_list() {
     let fixture = Fixture::new();
     for (info, message) in [
-        (json!({"casks": []}), "Expected one cask"),
         (
-            json!({"casks": [{"artifacts": [{"zap": []}]}]}),
+            json!({"casks": []}),
+            "Expected one Homebrew cask in brew info JSON",
+        ),
+        (
+            cask_info(json!([{"zap": []}])),
             "Expected one explicit cask cleanup list",
         ),
         (
-            json!({"casks": [{"artifacts": [{"zap": [{"trash": "~/Library"}]}]}]}),
+            cask_info(json!([{"zap": [{"trash": "~/Library"}]}])),
             "Cask cleanup paths must be an explicit list",
         ),
         (
-            json!({"casks": [{"artifacts": [{"zap": [{"trash": [false]}]}]}]}),
+            cask_info(json!([{"zap": [{"trash": [false]}]}])),
             "Cask cleanup paths must be an explicit list",
         ),
     ] {
@@ -99,6 +106,20 @@ fn cleanup_paths_require_one_cask_and_one_explicit_list() {
         );
         assert!(!present(&fixture.home).unwrap());
     }
+}
+
+#[test]
+fn another_cask_cannot_seed_kiseki_cleanup_paths() {
+    let fixture = Fixture::new();
+    let paths = fixture.paths();
+    let mut info = read_cask(&fixture.runner.join("kiseki-cask.json")).unwrap();
+    info["casks"][0]["full_token"] = json!("example/tap/kiseki");
+    fixture.write_info(info);
+    assert_eq!(
+        fixture.run(Stage::Seed, Some("github-hosted")).unwrap_err(),
+        "Expected the naviapps/tap/kiseki cask"
+    );
+    fixture.no_seeded_files(&paths);
 }
 
 #[test]

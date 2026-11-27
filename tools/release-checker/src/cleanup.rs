@@ -7,7 +7,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use crate::{CASK_INFO_FILE, read_cask};
+use crate::{CASK_INFO_FILE, read_cask, release::cask_entry};
 
 const FIXTURE_CONTENTS: &[u8] = b"Homebrew cleanup fixture\n";
 const PRODUCTION_PATHS: [&str; 6] = [
@@ -44,10 +44,7 @@ struct FixturePaths {
 
 impl FixturePaths {
     fn from_cask(info: &Value, home: &Path, root: &Path) -> Result<Self, String> {
-        let Some([cask]) = info["casks"].as_array().map(Vec::as_slice) else {
-            return Err("Expected one cask".into());
-        };
-        let artifacts = cask["artifacts"]
+        let artifacts = cask_entry(info)?["artifacts"]
             .as_array()
             .ok_or("Expected one explicit cask cleanup list")?;
         let mut zaps = artifacts.iter().filter_map(|artifact| artifact.get("zap"));
