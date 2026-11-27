@@ -14,6 +14,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 15
     env:
+      CASK_TOKEN: naviapps/tap/kiseki
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
       HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
@@ -37,24 +38,24 @@ jobs:
         run: |
           brew tap naviapps/tap "file://${GITHUB_WORKSPACE}"
           if brew command trust >/dev/null 2>&1; then
-            brew trust --cask naviapps/tap/kiseki
+            brew trust --cask "$CASK_TOKEN"
           fi
       - name: Record metadata for the installed cask definition
-        run: brew info --json=v2 --cask naviapps/tap/kiseki > "${RUNNER_TEMP}/kiseki-cask.json"
+        run: brew info --json=v2 --cask "$CASK_TOKEN" > "${RUNNER_TEMP}/kiseki-cask.json"
       - name: Audit
-        run: brew audit --strict --online --cask naviapps/tap/kiseki
+        run: brew audit --strict --online --cask "$CASK_TOKEN"
       - name: Verify the downloaded disk image
         id: dmg
         run: |
-          brew fetch --cask naviapps/tap/kiseki
-          dmg_path="$(brew --cache --cask naviapps/tap/kiseki)"
+          brew fetch --cask "$CASK_TOKEN"
+          dmg_path="$(brew --cache --cask "$CASK_TOKEN")"
           mise run cask:verify -- --verify-appcast --dmg "$dmg_path"
           xcrun stapler validate "$dmg_path"
           spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg_path"
           printf 'path=%s\n' "$dmg_path" >> "$GITHUB_OUTPUT"
       - name: Install and verify
         run: |
-          brew install --cask --require-sha --appdir="${RUNNER_TEMP}/kiseki-apps" naviapps/tap/kiseki
+          brew install --cask --require-sha --appdir="${RUNNER_TEMP}/kiseki-apps" "$CASK_TOKEN"
           mise run cask:verify -- --verify-installed
           codesign --verify --deep --strict --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
           spctl --assess --type execute --verbose=2 "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
@@ -68,21 +69,21 @@ jobs:
         run: mise run cask:verify -- --cleanup-fixtures seed
       - name: Verify ordinary uninstall preserves data
         run: |
-          brew uninstall --cask naviapps/tap/kiseki
+          brew uninstall --cask "$CASK_TOKEN"
           test ! -e "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
           mise run cask:verify -- --cleanup-fixtures verify-uninstall
       - name: Verify zap removes only app data
         run: |
           # The ordinary uninstall removes this cask's individual trust.
           if brew command trust >/dev/null 2>&1; then
-            brew trust --cask naviapps/tap/kiseki
+            brew trust --cask "$CASK_TOKEN"
           fi
-          brew uninstall --cask --zap --force naviapps/tap/kiseki
+          brew uninstall --cask --zap --force "$CASK_TOKEN"
           mise run cask:verify -- --cleanup-fixtures verify-zap
       - name: Uninstall
         if: always()
         run: |
-          if brew list --cask naviapps/tap/kiseki >/dev/null 2>&1; then
-            brew uninstall --cask naviapps/tap/kiseki
+          if brew list --cask "$CASK_TOKEN" >/dev/null 2>&1; then
+            brew uninstall --cask "$CASK_TOKEN"
           fi
           test ! -e "${RUNNER_TEMP}/kiseki-apps/Kiseki.app"
