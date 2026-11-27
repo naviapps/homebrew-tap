@@ -37,7 +37,7 @@ struct Arguments {
 
 fn parse_arguments(
     mut args: std::iter::Peekable<impl Iterator<Item = OsString>>,
-    runner_temp: Option<OsString>,
+    runner_temp: Option<&Path>,
 ) -> Result<Option<Arguments>, String> {
     let mut arguments = Arguments::default();
     let mut cask_info = None;
@@ -80,11 +80,7 @@ fn parse_arguments(
         }
     }
     arguments.cask_info = cask_info
-        .or_else(|| {
-            runner_temp
-                .filter(|path| !path.is_empty())
-                .map(|path| PathBuf::from(path).join(CASK_INFO_FILE))
-        })
+        .or_else(|| runner_temp.map(|root| root.join(CASK_INFO_FILE)))
         .ok_or("pass --cask-info or set RUNNER_TEMP")?;
     Ok(Some(arguments))
 }
@@ -143,7 +139,8 @@ fn finish(result: Result<(), String>) -> ExitCode {
 
 fn main() -> ExitCode {
     let mut args = env::args_os().skip(1).peekable();
-    let runner_temp = env::var_os("RUNNER_TEMP");
+    let runner_temp = env::var_os("RUNNER_TEMP").filter(|path| !path.is_empty());
+    let runner_temp = runner_temp.as_deref().map(Path::new);
     if args
         .next_if(|argument| argument == "--cleanup-fixtures")
         .is_some()

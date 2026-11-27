@@ -1,4 +1,4 @@
-use std::{borrow::Cow, ffi::OsString, fs, path::Path};
+use std::{borrow::Cow, fs, path::Path};
 
 use crate::{
     CASK_INFO_FILE, command, read_cask,
@@ -138,12 +138,9 @@ fn verify(
     Ok(version.into())
 }
 
-pub(crate) fn run(runner_temp: Option<OsString>) -> Result<(), String> {
-    let root = runner_temp
-        .as_deref()
-        .filter(|root| !root.is_empty())
-        .map(Path::new)
-        .ok_or("RUNNER_TEMP must hold the cask metadata and test app directory")?;
+pub(crate) fn run(runner_temp: Option<&Path>) -> Result<(), String> {
+    let root =
+        runner_temp.ok_or("RUNNER_TEMP must hold the cask metadata and test app directory")?;
     let version = verify(root, command::architectures)
         .map_err(|error| format!("Installed bundle verification failed: {error}"))?;
     println!("Verified Kiseki {version} bundle metadata and executable architectures.");

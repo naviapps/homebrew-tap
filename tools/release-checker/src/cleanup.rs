@@ -1,7 +1,7 @@
 use serde_json::Value;
 use std::{
     env,
-    ffi::{OsStr, OsString},
+    ffi::OsStr,
     fs::{self, File},
     io::{self, Read, Write},
     path::{Component, Path, PathBuf},
@@ -210,13 +210,9 @@ fn execute(
     }
 }
 
-pub(crate) fn run(stage: Stage, runner_temp: Option<OsString>) -> Result<(), String> {
+pub(crate) fn run(stage: Stage, runner_temp: Option<&Path>) -> Result<(), String> {
     let home = env::home_dir().ok_or("Could not resolve the runner's home directory")?;
-    let root = runner_temp
-        .as_deref()
-        .filter(|root| !root.is_empty())
-        .map(Path::new)
-        .ok_or("RUNNER_TEMP must hold the cask metadata and cleanup fixtures")?;
+    let root = runner_temp.ok_or("RUNNER_TEMP must hold the cask metadata and cleanup fixtures")?;
     execute(
         stage,
         &home,

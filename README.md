@@ -66,33 +66,22 @@ After publishing a new stable Kiseki release, update `version` and `sha256` in
 verify it against the published `SHA256SUMS`. Do not replace existing release
 assets. `brew livecheck --cask naviapps/tap/kiseki` checks the latest stable release.
 
-Review `mise.toml`, then prepare and run the pinned static checks from this checkout:
+Review `mise.toml`, then prepare and run the pinned checks from this checkout:
 
 ```sh
 mise trust mise.toml
 mise install
 mise run cask:fetch-verifier
 mise run check
-```
-
-`check` uses dprint, actionlint with ShellCheck, rustfmt, and Clippy.
-On macOS with Homebrew, check the cask's style:
-
-```sh
-mise run lint:cask
-```
-
-`lint:cask` checks `./Casks/kiseki.rb` using Homebrew's style rules with auto-update disabled.
-
-```sh
 mise run test:helpers
 ```
 
-After caching the locked dependencies, this tests the release checksum, installed
-bundle metadata, and cleanup fixtures offline in disposable directories. CI verifies exact
-production cleanup paths, refuses existing or symlinked fixture destinations, and
-checks ordinary uninstall and zap separately. On macOS the tests also use the
-selected Swift toolchain to exercise Ed25519 verification with public fixtures.
+`check` uses dprint, actionlint with ShellCheck, rustfmt, and Clippy.
+`test:helpers` tests release checksums, installed bundle metadata, and cleanup
+fixtures offline in disposable directories. On macOS it also uses the selected
+Swift toolchain to test Ed25519 verification with public fixtures.
+On macOS with Homebrew, `mise run lint:cask` checks `Casks/kiseki.rb` using
+Homebrew's style rules with auto-update disabled.
 
 Release validation additionally uses:
 
@@ -132,12 +121,11 @@ before changing cleanup paths: name matches can include QA apps, tests and CI
 workers. Keep paths specific to the production bundle ID; do not use bundle-prefix
 wildcards, remove shared directories or delete Keychain records with a script.
 
-The [Cask workflow](.github/workflows/cask.yml) verifies the downloaded DMG and
-installed bundle with Gatekeeper, checks the Sparkle signature over the original
-DMG, and tests ordinary uninstall and zap. Ordinary uninstall preserves fixture
-data, and zap removes only the declared app data.
-
-Cleanup fixtures run only on disposable GitHub-hosted runners; Kiseki is never
-launched. Do not run zap against an existing installation as a packaging test.
+The [Cask workflow](.github/workflows/cask.yml) checks the DMG and installed
+bundle with Gatekeeper and verifies the Sparkle signature over the original DMG.
+On disposable GitHub-hosted runners, it checks that ordinary uninstall preserves
+fixture data and zap removes only reviewed production paths. It refuses existing
+or symlinked fixture destinations and never launches Kiseki. Do not run zap
+against an existing installation as a packaging test.
 This repository contains packaging metadata only. Its MIT license does not apply
 to the Kiseki application, which is covered by [its own terms](https://kisekiapp.com/terms).
