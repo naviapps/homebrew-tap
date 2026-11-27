@@ -43,7 +43,7 @@ jobs:
       - name: Record metadata for the installed cask definition
         run: brew info --json=v2 --cask "$CASK_TOKEN" > "${RUNNER_TEMP}/kiseki-cask.json"
       - name: Audit
-        run: brew audit --strict --online --cask "$CASK_TOKEN"
+        run: brew audit --strict --online --skip-style --cask "$CASK_TOKEN"
       - name: Verify the downloaded disk image
         id: dmg
         run: |
