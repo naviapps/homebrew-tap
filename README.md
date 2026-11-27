@@ -94,10 +94,9 @@ against the published release without installing it.
   brew audit --strict --online --cask "$cask" || exit
   brew fetch --cask "$cask" || exit
   dmg=$(brew --cache --cask "$cask") || exit
-  cask_info=$(mktemp) || exit
-  trap 'rm -f -- "$cask_info"' EXIT || exit
-  brew info --json=v2 --cask "$cask" > "$cask_info" || exit
-  mise run cask:verify -- --cask-info "$cask_info" --dmg "$dmg" --verify-appcast
+  cask_info=$(brew info --json=v2 --cask "$cask") || exit
+  printf '%s\n' "$cask_info" |
+    mise run cask:verify -- --cask-info /dev/stdin --dmg "$dmg" --verify-appcast
 )
 ```
 
