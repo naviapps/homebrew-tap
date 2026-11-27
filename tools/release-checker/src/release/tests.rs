@@ -1,6 +1,6 @@
 use super::*;
 use serde_json::json;
-use std::{cell::RefCell, fs};
+use std::{fs, mem};
 
 const VERSION: &str = "1.2.3";
 const RELEASE: &str = "https://github.com/naviapps/kiseki/releases/download/v1.2.3";
@@ -40,20 +40,21 @@ fn manifest(feed: Option<&[u8]>) -> Vec<u8> {
 }
 
 fn fetch(
-    calls: &RefCell<Vec<&'static str>>,
-    manifest: Vec<u8>,
-    feed: Vec<u8>,
+    calls: &mut Vec<&'static str>,
+    mut manifest: Vec<u8>,
+    mut feed: Vec<u8>,
 ) -> impl FnMut(&str, &str, usize) -> Result<Vec<u8>, String> {
     move |release, name, limit| {
         assert_eq!(release, RELEASE);
         let (asset, expected_limit, contents) = match name {
-            MANIFEST => (MANIFEST, 64 * 1024, &manifest),
-            APPCAST => (APPCAST, 1024 * 1024, &feed),
+            MANIFEST => (MANIFEST, 64 * 1024, &mut manifest),
+            APPCAST => (APPCAST, 1024 * 1024, &mut feed),
             _ => panic!("unexpected asset: {name}"),
         };
         assert_eq!(limit, expected_limit);
-        calls.borrow_mut().push(asset);
-        Ok(contents.clone())
+        assert!(!calls.contains(&asset), "repeated download: {name}");
+        calls.push(asset);
+        Ok(mem::take(contents))
     }
 }
 
@@ -129,16 +130,16 @@ fn unbound_and_ambiguous_casks_fail_before_downloading() {
 
 #[test]
 fn manifest_only_and_appcast_modes_download_the_exact_assets() {
+    let info = cask_info();
     for verify_appcast in [false, true] {
-        let info = cask_info();
         let feed = feed().into_bytes();
-        let calls = RefCell::new(Vec::new());
+        let mut calls = Vec::new();
         let actual = verify(
             Request {
                 verify_appcast,
                 ..request(&info)
             },
-            fetch(&calls, manifest(Some(&feed)), feed),
+            fetch(&mut calls, manifest(Some(&feed)), feed),
             no_signature,
         )
         .unwrap();
@@ -151,14 +152,13 @@ fn manifest_only_and_appcast_modes_download_the_exact_assets() {
         } else {
             &[MANIFEST]
         };
-        assert_eq!(calls.into_inner(), expected);
+        assert_eq!(calls, expected);
     }
 }
 
 #[test]
 fn manifest_requires_one_well_formed_entry_per_selected_asset() {
-    let feed = feed().into_bytes();
-    let valid = manifest(Some(&feed));
+    let valid = manifest(Some(feed().as_bytes()));
     let dmg_only = manifest(None);
     for (contents, require_appcast, expected) in [
         (Vec::new(), false, "exactly one Kiseki.dmg entry"),
@@ -193,19 +193,19 @@ fn manifest_requires_one_well_formed_entry_per_selected_asset() {
             "Cask checksum differs",
         ),
     ] {
-        let calls = RefCell::new(Vec::new());
+        let mut calls = Vec::new();
         check_error(
             verify(
                 Request {
                     verify_appcast: require_appcast,
                     ..request(&cask_info())
                 },
-                fetch(&calls, contents, feed.clone()),
+                fetch(&mut calls, contents, Vec::new()),
                 no_signature,
             ),
             expected,
         );
-        assert_eq!(calls.into_inner(), [MANIFEST]);
+        assert_eq!(calls, [MANIFEST]);
     }
     let manifest = format!(
         "\u{2028}\t{}\u{2003}*Kiseki.dmg\r\n{DIGEST}\tappcast.xml\u{0085}{DIGEST}  appcast.xml",
@@ -224,19 +224,19 @@ fn manifest_requires_one_well_formed_entry_per_selected_asset() {
 }
 
 fn reject_appcast(manifest: Vec<u8>, xml: Vec<u8>, expected: &str) {
-    let calls = RefCell::new(Vec::new());
+    let mut calls = Vec::new();
     check_error(
         verify(
             Request {
                 verify_appcast: true,
                 ..request(&cask_info())
             },
-            fetch(&calls, manifest, xml),
+            fetch(&mut calls, manifest, xml),
             no_signature,
         ),
         expected,
     );
-    assert_eq!(calls.into_inner(), [MANIFEST, APPCAST]);
+    assert_eq!(calls, [MANIFEST, APPCAST]);
 }
 
 #[test]
@@ -386,7 +386,7 @@ fn verified_bundle_drives_the_existing_swift_signature_verifier() {
             ),
         )
         .unwrap();
-        let calls = RefCell::new(Vec::new());
+        let mut calls = Vec::new();
         let result = verify(
             Request {
                 dmg: Some(&dmg),
@@ -394,7 +394,7 @@ fn verified_bundle_drives_the_existing_swift_signature_verifier() {
                 ..request(&info)
             },
             fetch(
-                &calls,
+                &mut calls,
                 manifest.as_bytes().to_vec(),
                 xml.as_bytes().to_vec(),
             ),
@@ -405,7 +405,7 @@ fn verified_bundle_drives_the_existing_swift_signature_verifier() {
         } else {
             check_error(result, "Sparkle update signature verification failed");
         }
-        assert_eq!(calls.into_inner(), [MANIFEST, APPCAST]);
+        assert_eq!(calls, [MANIFEST, APPCAST]);
     }
 }
 
@@ -420,7 +420,7 @@ fn local_dmg_and_optional_signature_use_the_verified_release() {
         (DIGEST.into(), IMAGE.len() as u64)
     );
     let info = cask_info();
-    let calls = RefCell::new(Vec::new());
+    let mut calls = Vec::new();
     let feed = feed();
     verify(
         Request {
@@ -429,7 +429,7 @@ fn local_dmg_and_optional_signature_use_the_verified_release() {
             ..request(&info)
         },
         fetch(
-            &calls,
+            &mut calls,
             manifest(Some(feed.as_bytes())),
             feed.as_bytes().to_vec(),
         ),
@@ -450,10 +450,10 @@ fn local_dmg_and_optional_signature_use_the_verified_release() {
         },
     )
     .unwrap();
-    assert_eq!(calls.into_inner(), [MANIFEST, APPCAST]);
+    assert_eq!(calls, [MANIFEST, APPCAST]);
 
     let wrong_size = feed.replace(&format!("length=\"{}\"", IMAGE.len()), "length=\"1\"");
-    let calls = RefCell::new(Vec::new());
+    let mut calls = Vec::new();
     check_error(
         verify(
             Request {
@@ -462,7 +462,7 @@ fn local_dmg_and_optional_signature_use_the_verified_release() {
                 ..request(&info)
             },
             fetch(
-                &calls,
+                &mut calls,
                 manifest(Some(wrong_size.as_bytes())),
                 wrong_size.into_bytes(),
             ),
@@ -471,19 +471,19 @@ fn local_dmg_and_optional_signature_use_the_verified_release() {
         "Local DMG length differs",
     );
     fs::write(&dmg, b"different bytes").unwrap();
-    let calls = RefCell::new(Vec::new());
+    let mut calls = Vec::new();
     check_error(
         verify(
             Request {
                 dmg: Some(&dmg),
                 ..request(&info)
             },
-            fetch(&calls, manifest(None), Vec::new()),
+            fetch(&mut calls, manifest(None), Vec::new()),
             no_signature,
         ),
         "Local DMG checksum differs",
     );
-    assert_eq!(calls.into_inner(), [MANIFEST]);
+    assert_eq!(calls, [MANIFEST]);
     check_error(
         verify(
             Request {
