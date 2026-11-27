@@ -27,7 +27,7 @@ jobs:
           version: 2026.11.14
           install_args: dprint actionlint shellcheck rust
       - name: Fetch locked verifier dependencies
-        run: mise run cask:fetch-verifier
+        run: mise run cask:fetch-verifier -- --target host-tuple
       - name: Check formatting and workflows
         run: mise run check
       - name: Test verification helpers
