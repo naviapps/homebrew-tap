@@ -70,7 +70,7 @@ Review `mise.toml`, then prepare and run the pinned checks from this checkout:
 
 ```sh
 mise trust mise.toml
-mise install
+mise install dprint actionlint shellcheck rust
 mise run cask:fetch-verifier
 mise run check
 mise run test:helpers

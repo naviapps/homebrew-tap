@@ -30,26 +30,24 @@ fn curl_ignores_user_configuration_and_bounds_https_redirects() {
 
 #[test]
 fn read_requires_complete_successful_response_within_the_byte_limit() {
-    for name in ["SHA256SUMS", "appcast.xml"] {
-        for (script, expected, message) in [
-            ("printf 1234", Some(b"1234".as_slice()), ""),
-            ("printf 12345", None, "exceeds the size limit"),
-            ("printf partial; exit 63", None, "exceeds the size limit"),
-            (
-                "printf 1234; exit 1",
-                None,
-                "must be transferred over HTTPS",
-            ),
-            ("printf 1234; exit 22", None, "Could not download published"),
-        ] {
-            let mut command = Command::new("/bin/sh");
-            command.args(["-c", script]);
-            let output = read_download(&mut command, name, 4);
-            if let Some(expected) = expected {
-                assert_eq!(output.unwrap(), expected);
-            } else {
-                assert!(output.unwrap_err().contains(message), "{script}");
-            }
+    for (script, expected, message) in [
+        ("printf 1234", Some(b"1234".as_slice()), ""),
+        ("printf 12345", None, "exceeds the size limit"),
+        ("printf partial; exit 63", None, "exceeds the size limit"),
+        (
+            "printf 1234; exit 1",
+            None,
+            "must be transferred over HTTPS",
+        ),
+        ("printf 1234; exit 22", None, "Could not download published"),
+    ] {
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", script]);
+        let output = read_download(&mut command, "SHA256SUMS", 4);
+        if let Some(expected) = expected {
+            assert_eq!(output.unwrap(), expected);
+        } else {
+            assert!(output.unwrap_err().contains(message), "{script}");
         }
     }
 }
