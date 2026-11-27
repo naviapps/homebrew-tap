@@ -42,12 +42,11 @@ jobs:
           fi
       - name: Record metadata for the installed cask definition
         run: brew info --json=v2 --cask "$CASK_TOKEN" > "${RUNNER_TEMP}/kiseki-cask.json"
-      - name: Audit
+      - name: Audit and cache the disk image
         run: brew audit --strict --online --skip-style --cask "$CASK_TOKEN"
       - name: Verify the downloaded disk image
         id: dmg
         run: |
-          brew fetch --cask "$CASK_TOKEN"
           dmg_path="$(brew --cache --cask "$CASK_TOKEN")"
           mise run cask:verify -- --verify-appcast --dmg "$dmg_path"
           xcrun stapler validate "$dmg_path"

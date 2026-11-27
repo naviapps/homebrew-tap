@@ -84,15 +84,14 @@ On macOS with Homebrew, `mise run lint:cask` checks `Casks/kiseki.rb` using
 Homebrew's style rules with auto-update disabled.
 
 Run the release checks against the modified checkout at `brew --repository naviapps/tap`.
-CI taps the proposed checkout. This audits the cask and verifies its cached DMG
-against the published release without installing it.
+CI taps the proposed checkout. The online audit caches the DMG. The verifier
+checks that image against the published release without installing it.
 
 ```sh
 (
   export HOMEBREW_NO_AUTO_UPDATE=1
   cask=naviapps/tap/kiseki
   brew audit --strict --online --cask "$cask" || exit
-  brew fetch --cask "$cask" || exit
   dmg=$(brew --cache --cask "$cask") || exit
   cask_info=$(brew info --json=v2 --cask "$cask") || exit
   printf '%s\n' "$cask_info" |
@@ -100,7 +99,7 @@ against the published release without installing it.
 )
 ```
 
-For a DMG you already downloaded, replace the fetch and cache lines with
+For a DMG you already downloaded, replace the cache lookup with
 `dmg=/path/to/Kiseki.dmg`.
 
 `cask:verify` runs the pinned Rust verifier. It retrieves the checksums and appcast
