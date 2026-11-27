@@ -46,19 +46,14 @@ fn fetch(
 ) -> impl FnMut(&str, &str, usize) -> Result<Vec<u8>, String> {
     move |release, name, limit| {
         assert_eq!(release, RELEASE);
-        match name {
-            MANIFEST => {
-                assert_eq!(limit, 64 * 1024);
-                calls.borrow_mut().push(MANIFEST);
-                Ok(manifest.clone())
-            }
-            APPCAST => {
-                assert_eq!(limit, 1024 * 1024);
-                calls.borrow_mut().push(APPCAST);
-                Ok(feed.clone())
-            }
+        let (asset, expected_limit, contents) = match name {
+            MANIFEST => (MANIFEST, 64 * 1024, &manifest),
+            APPCAST => (APPCAST, 1024 * 1024, &feed),
             _ => panic!("unexpected asset: {name}"),
-        }
+        };
+        assert_eq!(limit, expected_limit);
+        calls.borrow_mut().push(asset);
+        Ok(contents.clone())
     }
 }
 
@@ -73,6 +68,10 @@ fn request(info: &Value) -> Request<'_> {
 
 fn no_signature(_: &Path, _: &Path, _: &Cask, _: &Enclosure) -> Result<(), String> {
     panic!("unexpected signature verification");
+}
+
+fn no_download(_: &str, _: &str, _: usize) -> Result<Vec<u8>, String> {
+    panic!("unexpected download");
 }
 
 fn check_error(result: Result<Cask, String>, expected: &str) {
@@ -112,14 +111,7 @@ fn unbound_and_ambiguous_casks_fail_before_downloading() {
     ] {
         let mut info = cask_info();
         info["casks"][0][key] = json!(value);
-        check_error(
-            verify(
-                request(&info),
-                |_, _, _| panic!("unexpected download"),
-                no_signature,
-            ),
-            expected,
-        );
+        check_error(verify(request(&info), no_download, no_signature), expected);
     }
     for info in [
         json!(null),
@@ -129,11 +121,7 @@ fn unbound_and_ambiguous_casks_fail_before_downloading() {
         json!({"casks":[cask_info()["casks"][0], cask_info()["casks"][0]]}),
     ] {
         check_error(
-            verify(
-                request(&info),
-                |_, _, _| panic!("unexpected download"),
-                no_signature,
-            ),
+            verify(request(&info), no_download, no_signature),
             "one Homebrew cask",
         );
     }
@@ -235,8 +223,7 @@ fn manifest_requires_one_well_formed_entry_per_selected_asset() {
     );
 }
 
-#[test]
-fn appcast_bytes_must_match_before_xml_parsing() {
+fn reject_appcast(manifest: Vec<u8>, xml: Vec<u8>, expected: &str) {
     let calls = RefCell::new(Vec::new());
     check_error(
         verify(
@@ -244,16 +231,21 @@ fn appcast_bytes_must_match_before_xml_parsing() {
                 verify_appcast: true,
                 ..request(&cask_info())
             },
-            fetch(
-                &calls,
-                manifest(Some(feed().as_bytes())),
-                b"changed bytes".to_vec(),
-            ),
+            fetch(&calls, manifest, xml),
             no_signature,
         ),
-        "appcast.xml checksum differs",
+        expected,
     );
     assert_eq!(calls.into_inner(), [MANIFEST, APPCAST]);
+}
+
+#[test]
+fn appcast_bytes_must_match_before_xml_parsing() {
+    reject_appcast(
+        manifest(Some(feed().as_bytes())),
+        b"changed bytes".to_vec(),
+        "appcast.xml checksum differs",
+    );
 }
 
 #[test]
@@ -319,19 +311,7 @@ fn appcast_validates_exact_structure_namespace_and_metadata() {
             "positive disk-image length",
         ),
     ] {
-        let calls = RefCell::new(Vec::new());
-        check_error(
-            verify(
-                Request {
-                    verify_appcast: true,
-                    ..request(&cask_info())
-                },
-                fetch(&calls, manifest(Some(xml.as_bytes())), xml.into_bytes()),
-                no_signature,
-            ),
-            expected,
-        );
-        assert_eq!(calls.into_inner(), [MANIFEST, APPCAST]);
+        reject_appcast(manifest(Some(xml.as_bytes())), xml.into_bytes(), expected);
     }
 }
 
@@ -510,7 +490,7 @@ fn local_dmg_and_optional_signature_use_the_verified_release() {
                 bundle: Some(&bundle),
                 ..request(&info)
             },
-            |_, _, _| panic!("unexpected download"),
+            no_download,
             no_signature,
         ),
         "requires a local DMG",
